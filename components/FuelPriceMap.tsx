@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
 import { FuelPriceService, FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
@@ -44,7 +44,7 @@ const PriceThresholds = {
   }
 };
 
-export default function FuelPriceMap() {
+const FuelPriceMap = () => {
   const [fuelStations, setFuelStations] = useState<FuelStation[]>([]);
   const [filteredStations, setFilteredStations] = useState<FuelStation[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,10 +56,29 @@ export default function FuelPriceMap() {
   const [showSearchArea, setShowSearchArea] = useState(false);
   const [currentBounds, setCurrentBounds] = useState<number[] | null>(null);
   const [currentZoom, setCurrentZoom] = useState(9);
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (selectedStation) {
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11
+      }).start();
+    } else {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11
+      }).start();
+    }
+  }, [selectedStation]);
 
   const fetchData = async (forceRefresh: boolean = false) => {
     setLoading(true);
@@ -187,109 +206,116 @@ export default function FuelPriceMap() {
   const renderAnnotations = () => {
     const geojson = {
       type: 'FeatureCollection',
-      features: fuelStations.map(station => ({
-        type: 'Feature',
-        properties: {
-          id: station.site_id,
-          price: station.prices.E10 || station.prices.B7 || 0,
-          color: getPriceColor(station.prices)
-        },
-        geometry: {
-          type: 'Point',
-          coordinates: [station.location.longitude, station.location.latitude]
-        }
-      }))
+      features: filteredStations
+        .filter(station => {
+          return (
+            typeof station.location.longitude === 'number' &&
+            typeof station.location.latitude === 'number' &&
+            !isNaN(station.location.longitude) &&
+            !isNaN(station.location.latitude)
+          );
+        })
+        .map(station => ({
+          type: 'Feature',
+          properties: {
+            id: station.site_id,
+            price: station.prices.E10 || station.prices.B7 || 999,
+            color: getPriceColor(station.prices)
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: [station.location.longitude, station.location.latitude]
+          }
+        }))
     };
 
     return (
-      <>
-        <Mapbox.ShapeSource
-          id="stationsSource"
-          shape={geojson}
-          cluster={true}
-          clusterMaxZoom={11}
-          clusterRadius={50}
-          clusterProperties={{
-            sum: ['+', ['get', 'price']],
-            point_count: ['get', 'point_count']
-          }}
-          onPress={e => {
-            const feature = e.features[0];
-            if (feature && !feature.properties.cluster) {
-              const station = fuelStations.find(s => s.site_id === feature.properties.id);
-              if (station) {
-                setSelectedStation(station);
-              }
+      <Mapbox.ShapeSource
+        id="stationsSource"
+        shape={geojson}
+        cluster={true}
+        clusterMaxZoom={11}
+        clusterRadius={50}
+        clusterProperties={{
+          sum: ['+', ['get', 'price']],
+          point_count: ['get', 'point_count']
+        }}
+        onPress={e => {
+          const feature = e.features[0];
+          if (feature && !feature.properties.cluster) {
+            const station = fuelStations.find(s => s.site_id === feature.properties.id);
+            if (station) {
+              setSelectedStation(station);
             }
+          }
+        }}
+      >
+        {/* Render clusters */}
+        <Mapbox.CircleLayer
+          id="clusters"
+          filter={['has', 'point_count']}
+          style={{
+            circleColor: [
+              'step',
+              ['/', ['get', 'sum'], ['get', 'point_count']], // Average price
+              '#4CAF50', // Green for cheap
+              140,       // If average price >= 140
+              '#FF9800', // Orange for medium
+              150,       // If average price >= 150
+              '#F44336'  // Red for expensive
+            ],
+            circleRadius: [
+              'step',
+              ['get', 'point_count'],
+              20,  // Default radius
+              10,  // Then radius = 25
+              25,  // If point_count >= 50
+              50,  // Then radius = 30
+              30
+            ],
+            circleOpacity: 0.84,
+            circleStrokeWidth: 2,
+            circleStrokeColor: 'white'
           }}
-        >
-          {/* Render clusters */}
-          <Mapbox.CircleLayer
-            id="clusters"
-            filter={['has', 'point_count']}
-            style={{
-              circleColor: [
-                'step',
-                ['/', ['get', 'sum'], ['get', 'point_count']], // Average price
-                '#4CAF50', // Green for cheap
-                140,       // If average price >= 140
-                '#FF9800', // Orange for medium
-                150,       // If average price >= 150
-                '#F44336'  // Red for expensive
-              ],
-              circleRadius: [
-                'step',
-                ['get', 'point_count'],
-                20,  // Default radius
-                10,  // Then radius = 25
-                25,  // If point_count >= 50
-                50,  // Then radius = 30
-                30
-              ],
-              circleOpacity: 0.84,
-              circleStrokeWidth: 2,
-              circleStrokeColor: 'white'
-            }}
-          />
+        />
 
-          {/* Render cluster count */}
-          <Mapbox.SymbolLayer
-            id="cluster-count"
-            filter={['has', 'point_count']}
-            style={{
-              textField: ['get', 'point_count'],
-              textSize: 14,
-              textColor: '#FFFFFF',
-              textAllowOverlap: true,
-              textIgnorePlacement: true
-            }}
-          />
+        {/* Render cluster count */}
+        <Mapbox.SymbolLayer
+          id="cluster-count"
+          filter={['has', 'point_count']}
+          style={{
+            textField: ['get', 'point_count'],
+            textSize: 14,
+            textColor: '#FFFFFF',
+            textAllowOverlap: true,
+            textIgnorePlacement: true
+          }}
+        />
 
-          {/* Render individual stations */}
-          <Mapbox.CircleLayer
-            id="unclustered-points"
-            filter={['!', ['has', 'point_count']]}
-            style={{
-              circleColor: ['get', 'color'],
-              circleRadius: 12,
-              circleStrokeWidth: 2,
-              circleStrokeColor: 'white'
-            }}
-          />
+        {/* Render individual stations */}
+        <Mapbox.CircleLayer
+          id="unclustered-points"
+          filter={['!', ['has', 'point_count']]}
+          style={{
+            circleColor: ['get', 'color'],
+            circleRadius: 12,
+            circleStrokeWidth: 2,
+            circleStrokeColor: 'white'
+          }}
+        />
 
-          <Mapbox.SymbolLayer
-            id="unclustered-labels"
-            filter={['!', ['has', 'point_count']]}
-            style={{
-              textField: '£',
-              textSize: 12,
-              textColor: '#FFFFFF',
-              textAllowOverlap: true,
-              textIgnorePlacement: true
-            }}
-          />
-        </Mapbox.ShapeSource>
-      </>
+        <Mapbox.SymbolLayer
+          id="unclustered-labels"
+          filter={['!', ['has', 'point_count']]}
+          style={{
+            textField: '£',
+            textSize: 12,
+            textColor: '#FFFFFF',
+            textAllowOverlap: true,
+            textIgnorePlacement: true
+          }}
+        />
+      </Mapbox.ShapeSource>
     );
   };
 
@@ -381,78 +407,83 @@ export default function FuelPriceMap() {
         </Mapbox.MapView>
 
         {selectedStation && (
-          <View className="absolute bottom-0 left-0 right-0 bg-white">
-            <View className="shadow-lg">
-              {/* Handle bar */}
-              <View className="w-full items-center py-2">
-                <View className="w-12 h-1 rounded-full bg-gray-300" />
-              </View>
-
-              <View className="px-4 pb-6">
-                {/* Header */}
-                <View className="flex-row items-center mb-3">
-                  <Image 
-                    source={BrandLogos[selectedStation.brand] || BrandLogos.default}
-                    className="w-8 h-8 mr-2"
-                    resizeMode="contain"
-                  />
-                  <View className="flex-1">
-                    <Text className="text-lg font-bold text-gray-900">{selectedStation.brand}</Text>
-                    <Text className="text-sm text-gray-500">{selectedStation.address}</Text>
-                  </View>
-                  <TouchableOpacity 
-                    onPress={() => setSelectedStation(null)}
-                    className="ml-2 p-2"
-                  >
-                    <Text className="text-xl text-gray-400">×</Text>
-                  </TouchableOpacity>
+          <Animated.View 
+            className="absolute bottom-0 left-0 right-0 bg-white"
+            style={{
+              transform: [{
+                translateY: slideAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [300, 0]
+                })
+              }]
+            }}
+          >
+            <View className="px-4 pt-4 pb-8">
+              {/* Header */}
+              <View className="flex-row items-center mb-4">
+                <Image 
+                  source={BrandLogos[selectedStation.brand] || BrandLogos.default}
+                  className="w-12 h-12 mr-3"
+                  resizeMode="contain"
+                />
+                <View className="flex-1">
+                  <Text className="text-2xl font-bold text-gray-900">{selectedStation.brand}</Text>
+                  <Text className="text-base text-gray-600 mt-1">{selectedStation.address}</Text>
                 </View>
-
-                {/* Price Info */}
-                <View className="flex-row justify-between bg-gray-50 rounded-lg p-3 mb-3">
-                  {selectedStation.prices.E10 && (
-                    <View className="flex-1">
-                      <Text className="text-sm text-gray-500">Petrol (E10)</Text>
-                      <Text className="text-lg font-bold text-gray-900">
-                        £{(selectedStation.prices.E10 / 100).toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
-                  {selectedStation.prices.B7 && (
-                    <View className="flex-1 ml-4">
-                      <Text className="text-sm text-gray-500">Diesel</Text>
-                      <Text className="text-lg font-bold text-gray-900">
-                        £{(selectedStation.prices.B7 / 100).toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Directions Button */}
-                <TouchableOpacity
-                  className="bg-blue-500 rounded-lg p-3 flex-row items-center justify-center mb-2"
-                  onPress={() => {
-                    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-                    const latLng = `${selectedStation.location.latitude},${selectedStation.location.longitude}`;
-                    const label = selectedStation.brand;
-                    const url = Platform.select({
-                      ios: `${scheme}${label}@${latLng}`,
-                      android: `${scheme}${latLng}(${label})`
-                    });
-                    Linking.openURL(url);
-                  }}
+                <TouchableOpacity 
+                  onPress={() => setSelectedStation(null)}
+                  className="h-8 w-8 rounded-full bg-gray-100 items-center justify-center"
                 >
-                  <Text className="text-white font-semibold">Get Directions</Text>
+                  <Text className="text-lg text-gray-500">×</Text>
                 </TouchableOpacity>
-
-                <Text className="text-xs text-gray-400 text-center">
-                  {selectedStation.postcode}
-                </Text>
               </View>
+
+              {/* Price Info */}
+              <View className="flex-row justify-between bg-gray-50 rounded-2xl p-4 mb-4">
+                {selectedStation.prices.E10 && (
+                  <View className="flex-1">
+                    <Text className="text-base text-gray-600 mb-1">Petrol (E10)</Text>
+                    <Text className="text-2xl font-bold text-gray-900">
+                      £{(selectedStation.prices.E10 / 100).toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+                {selectedStation.prices.B7 && (
+                  <View className="flex-1 ml-6">
+                    <Text className="text-base text-gray-600 mb-1">Diesel</Text>
+                    <Text className="text-2xl font-bold text-gray-900">
+                      £{(selectedStation.prices.B7 / 100).toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Directions Button */}
+              <TouchableOpacity
+                className="bg-blue-500 rounded-2xl p-4 flex-row items-center justify-center"
+                onPress={() => {
+                  const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+                  const latLng = `${selectedStation.location.latitude},${selectedStation.location.longitude}`;
+                  const label = selectedStation.brand;
+                  const url = Platform.select({
+                    ios: `${scheme}${label}@${latLng}`,
+                    android: `${scheme}${latLng}(${label})`
+                  });
+                  Linking.openURL(url);
+                }}
+              >
+                <Text className="text-white font-semibold text-lg">Get Directions</Text>
+              </TouchableOpacity>
+
+              <Text className="text-sm text-gray-400 text-center mt-4">
+                {selectedStation.postcode}
+              </Text>
             </View>
-          </View>
+          </Animated.View>
         )}
       </View>
     </SafeAreaView>
   );
-}
+};
+
+export default FuelPriceMap;
