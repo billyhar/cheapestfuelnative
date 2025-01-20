@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
 import { FuelPriceService, FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
@@ -185,36 +185,20 @@ export default function FuelPriceMap() {
   };
 
   const renderAnnotations = () => {
-    // Create GeoJSON features with price data for clustering
-    const features: GeoJSONFeature[] = filteredStations
-      .filter(station => {
-        return (
-          typeof station.location.longitude === 'number' &&
-          typeof station.location.latitude === 'number' &&
-          !isNaN(station.location.longitude) &&
-          !isNaN(station.location.latitude)
-        );
-      })
-      .map(station => ({
+    const geojson = {
+      type: 'FeatureCollection',
+      features: fuelStations.map(station => ({
         type: 'Feature',
+        properties: {
+          id: station.site_id,
+          price: station.prices.E10 || station.prices.B7 || 0,
+          color: getPriceColor(station.prices)
+        },
         geometry: {
           type: 'Point',
           coordinates: [station.location.longitude, station.location.latitude]
-        },
-        properties: {
-          id: station.site_id,
-          price: station.prices.E10 || station.prices.B7 || 999,
-          color: getPriceColor(station.prices),
-          brand: station.brand,
-          address: station.address,
-          postcode: station.postcode,
-          prices: station.prices
         }
-      }));
-
-    const geojson: GeoJSONCollection = {
-      type: 'FeatureCollection',
-      features
+      }))
     };
 
     return (
@@ -228,6 +212,15 @@ export default function FuelPriceMap() {
           clusterProperties={{
             sum: ['+', ['get', 'price']],
             point_count: ['get', 'point_count']
+          }}
+          onPress={e => {
+            const feature = e.features[0];
+            if (feature && !feature.properties.cluster) {
+              const station = fuelStations.find(s => s.site_id === feature.properties.id);
+              if (station) {
+                setSelectedStation(station);
+              }
+            }
           }}
         >
           {/* Render clusters */}
@@ -296,71 +289,6 @@ export default function FuelPriceMap() {
             }}
           />
         </Mapbox.ShapeSource>
-
-        {/* Add a separate source for handling clicks */}
-        <Mapbox.ShapeSource
-          id="stationsClickSource"
-          shape={geojson}
-          cluster={false}
-        >
-          <Mapbox.CircleLayer
-            id="station-click-layer"
-            style={{
-              circleRadius: 12,
-              circleOpacity: 0
-            }}
-            onPress={e => {
-              const feature = e.features[0];
-              if (feature) {
-                const station = fuelStations.find(s => s.site_id === feature.properties.id);
-                if (station) {
-                  setSelectedStation(station);
-                }
-              }
-            }}
-          />
-        </Mapbox.ShapeSource>
-
-        {selectedStation && (
-          <Mapbox.MarkerView
-            coordinate={[selectedStation.location.longitude, selectedStation.location.latitude]}
-            anchor={{x: 0.5, y: 0}}
-          >
-            <View className="bg-white rounded-lg shadow-lg p-3 mb-2">
-              <View className="flex-row items-center mb-2">
-                <Image 
-                  source={BrandLogos[selectedStation.brand] || BrandLogos.default}
-                  className="w-6 h-6 mr-2"
-                />
-                <Text className="font-bold flex-1">{selectedStation.brand}</Text>
-                <TouchableOpacity 
-                  onPress={() => setSelectedStation(null)}
-                  className="ml-2"
-                >
-                  <Text className="text-gray-500">✕</Text>
-                </TouchableOpacity>
-              </View>
-              
-              <Text className="text-gray-600 mb-1">{selectedStation.address}</Text>
-              <Text className="text-gray-500 text-sm mb-2">{selectedStation.postcode}</Text>
-              
-              <View className="flex-row justify-between mt-1">
-                {selectedStation.prices.E10 && (
-                  <View>
-                    <Text className="text-sm text-gray-500">E10</Text>
-                    <Text className="font-bold">£{selectedStation.prices.E10.toFixed(1)}p</Text>
-                  </View>
-                )}
-                {selectedStation.prices.B7 && (
-                  <View>
-                    <Text className="text-sm text-gray-500">Diesel</Text>
-                    <Text className="font-bold">£{selectedStation.prices.B7.toFixed(1)}p</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </Mapbox.MarkerView>
-        )}
       </>
     );
   };
@@ -392,6 +320,7 @@ export default function FuelPriceMap() {
             <Text className="text-blue-600 text-lg">↻</Text>
           </TouchableOpacity>
         </View>
+
         {priceStats.E10.min > 0 && (
           <Text className="text-sm text-gray-600 px-4 pb-2">
             E10: {formatPrice(priceStats.E10.min)} - {formatPrice(priceStats.E10.max)} | 
@@ -399,13 +328,15 @@ export default function FuelPriceMap() {
           </Text>
         )}
       </View>
-      
-      <View className="flex-1">
+
+      <View className="flex-1 relative">
         <Mapbox.MapView
           ref={mapRef}
-          style={{ flex: 1, minHeight: 500 }}
+          style={{ flex: 1 }}
           styleURL="mapbox://styles/mapbox/streets-v12"
+          logoEnabled={false}
           compassEnabled={true}
+          pitchEnabled={false}
           zoomEnabled={true}
           scrollEnabled={true}
           rotateEnabled={true}
@@ -416,6 +347,7 @@ export default function FuelPriceMap() {
               setShowSearchArea(true);
             }
           }}
+          onPress={() => setSelectedStation(null)}
         >
           <Mapbox.Camera
             defaultSettings={{
@@ -424,7 +356,9 @@ export default function FuelPriceMap() {
             }}
             animationMode="none"
           />
+          
           {renderAnnotations()}
+
           {showSearchArea && (
             <TouchableOpacity
               className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-500 px-4 py-2 rounded-full shadow-lg"
@@ -445,6 +379,79 @@ export default function FuelPriceMap() {
             </View>
           )}
         </Mapbox.MapView>
+
+        {selectedStation && (
+          <View className="absolute bottom-0 left-0 right-0 bg-white">
+            <View className="shadow-lg">
+              {/* Handle bar */}
+              <View className="w-full items-center py-2">
+                <View className="w-12 h-1 rounded-full bg-gray-300" />
+              </View>
+
+              <View className="px-4 pb-6">
+                {/* Header */}
+                <View className="flex-row items-center mb-3">
+                  <Image 
+                    source={BrandLogos[selectedStation.brand] || BrandLogos.default}
+                    className="w-8 h-8 mr-2"
+                    resizeMode="contain"
+                  />
+                  <View className="flex-1">
+                    <Text className="text-lg font-bold text-gray-900">{selectedStation.brand}</Text>
+                    <Text className="text-sm text-gray-500">{selectedStation.address}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => setSelectedStation(null)}
+                    className="ml-2 p-2"
+                  >
+                    <Text className="text-xl text-gray-400">×</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Price Info */}
+                <View className="flex-row justify-between bg-gray-50 rounded-lg p-3 mb-3">
+                  {selectedStation.prices.E10 && (
+                    <View className="flex-1">
+                      <Text className="text-sm text-gray-500">Petrol (E10)</Text>
+                      <Text className="text-lg font-bold text-gray-900">
+                        £{(selectedStation.prices.E10 / 100).toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+                  {selectedStation.prices.B7 && (
+                    <View className="flex-1 ml-4">
+                      <Text className="text-sm text-gray-500">Diesel</Text>
+                      <Text className="text-lg font-bold text-gray-900">
+                        £{(selectedStation.prices.B7 / 100).toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Directions Button */}
+                <TouchableOpacity
+                  className="bg-blue-500 rounded-lg p-3 flex-row items-center justify-center mb-2"
+                  onPress={() => {
+                    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+                    const latLng = `${selectedStation.location.latitude},${selectedStation.location.longitude}`;
+                    const label = selectedStation.brand;
+                    const url = Platform.select({
+                      ios: `${scheme}${label}@${latLng}`,
+                      android: `${scheme}${latLng}(${label})`
+                    });
+                    Linking.openURL(url);
+                  }}
+                >
+                  <Text className="text-white font-semibold">Get Directions</Text>
+                </TouchableOpacity>
+
+                <Text className="text-xs text-gray-400 text-center">
+                  {selectedStation.postcode}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
