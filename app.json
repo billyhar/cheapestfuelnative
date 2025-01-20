@@ -18,6 +18,10 @@
       "bundleIdentifier": "com.billyhar.cheapest-fuel-native",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "appleTeamId": "RXC4M6A76Q",
+      "infoPlist": {
+        "UIViewControllerBasedStatusBarAppearance": true
       }
     },
     "android": {

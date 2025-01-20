@@ -1,34 +1,36 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
-import axios from 'axios';
+import { FuelPriceService, FuelStation } from '../services/FuelPriceService';
+import { BrandLogos } from '../constants/BrandAssets';
 
 // Initialize Mapbox configuration
 Mapbox.setWellKnownTileServer('mapbox');
 Mapbox.setAccessToken('pk.eyJ1IjoiY2hvbmthbW9ua2EiLCJhIjoiY201OXM3ZHI3MDRhaTJqczZwNGdqcjUyMCJ9.5s5gHVZdgIyswhtkFYbevQ');
 
-interface FuelPrices {
-  B7?: number;  // Diesel
-  E10?: number; // Regular unleaded
-  E5?: number;  // Premium unleaded
-  SDV?: number; // Super diesel
-}
-
-interface FuelStation {
-  address: string;
-  brand: string;
-  location: {
-    latitude: number;
-    longitude: number;
+interface GeoJSONFeature {
+  type: 'Feature';
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number];
   };
-  postcode: string;
-  prices: FuelPrices;
-  site_id: string;
+  properties: {
+    id: string;
+    price?: number;
+    color: string;
+    brand: string;
+    address: string;
+    postcode: string;
+    prices: {
+      E10?: number;
+      B7?: number;
+    };
+  };
 }
 
-interface APIResponse {
-  last_updated?: string;
-  stations: FuelStation[];
+interface GeoJSONCollection {
+  type: 'FeatureCollection';
+  features: GeoJSONFeature[];
 }
 
 const PriceThresholds = {
@@ -44,68 +46,106 @@ const PriceThresholds = {
 
 export default function FuelPriceMap() {
   const [fuelStations, setFuelStations] = useState<FuelStation[]>([]);
+  const [filteredStations, setFilteredStations] = useState<FuelStation[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [selectedStation, setSelectedStation] = useState<FuelStation | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const mapRef = useRef<Mapbox.MapView | null>(null);
-  const [priceStats, setPriceStats] = useState<{
-    E10: { min: number; max: number };
-    B7: { min: number; max: number };
-  }>({
-    E10: { min: 0, max: 0 },
-    B7: { min: 0, max: 0 }
-  });
+  const [showSearchArea, setShowSearchArea] = useState(false);
+  const [currentBounds, setCurrentBounds] = useState<number[] | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(9);
 
   useEffect(() => {
-    const fetchFuelPrices = async () => {
-      try {
-        const response = await axios.get<APIResponse>('https://storelocator.asda.com/fuel_prices_data.json', {
-          timeout: 5000
-        });
-        
-        if (response.data?.stations && Array.isArray(response.data.stations)) {
-          const stations = response.data.stations.filter(station => 
-            station &&
-            station.location &&
-            typeof station.location.latitude === 'number' &&
-            typeof station.location.longitude === 'number'
-          );
-          
-          // Calculate price statistics
-          const prices = {
-            E10: stations.map(s => s.prices.E10).filter(p => p) as number[],
-            B7: stations.map(s => s.prices.B7).filter(p => p) as number[]
-          };
-
-          setPriceStats({
-            E10: {
-              min: Math.min(...prices.E10),
-              max: Math.max(...prices.E10)
-            },
-            B7: {
-              min: Math.min(...prices.B7),
-              max: Math.max(...prices.B7)
-            }
-          });
-          
-          setFuelStations(stations);
-          if (response.data.last_updated) {
-            setLastUpdated(response.data.last_updated);
-          }
-        } else {
-          console.log('Invalid response structure:', response.data);
-          setError('Invalid data format received from API');
-        }
-      } catch (error: any) {
-        console.error('Error details:', error.response || error);
-        setError(error.message || 'Failed to fetch fuel prices');
-      }
-    };
-
-    fetchFuelPrices();
+    fetchData();
   }, []);
 
-  const getPriceColor = (prices: FuelPrices): string => {
+  const fetchData = async (forceRefresh: boolean = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const service = FuelPriceService.getInstance();
+      const stations = await service.fetchFuelPrices(
+        (progress) => setLoadingProgress(progress * 100),
+        forceRefresh
+      );
+      
+      setFuelStations(stations);
+      setFilteredStations(stations);
+      setLastUpdated(service.getLastUpdated());
+      
+      // Calculate price stats from all stations
+      const prices = {
+        E10: stations.map(s => s.prices.E10).filter(p => p) as number[],
+        B7: stations.map(s => s.prices.B7).filter(p => p) as number[]
+      };
+
+      setPriceStats({
+        E10: {
+          min: Math.min(...prices.E10),
+          max: Math.max(...prices.E10)
+        },
+        B7: {
+          min: Math.min(...prices.B7),
+          max: Math.max(...prices.B7)
+        }
+      });
+    } catch (error: any) {
+      console.error('Error fetching fuel prices:', error);
+      setError(error.message || 'Failed to fetch fuel prices');
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+    }
+  };
+
+  const filterStationsInBounds = () => {
+    if (!currentBounds) return;
+    
+    const [west, south, east, north] = currentBounds;
+    
+    // Add padding to the bounds (about 5km)
+    const padding = 0.05;
+    const paddedBounds = {
+      north: north + padding,
+      south: south - padding,
+      east: east + padding,
+      west: west - padding
+    };
+
+    // First filter by bounds
+    const inBoundsStations = fuelStations.filter(station => 
+      station.location.latitude <= paddedBounds.north &&
+      station.location.latitude >= paddedBounds.south &&
+      station.location.longitude <= paddedBounds.east &&
+      station.location.longitude >= paddedBounds.west
+    );
+
+    // Then limit based on zoom level
+    let maxStations = 1000;
+    if (currentZoom < 8) maxStations = 20;
+    else if (currentZoom < 10) maxStations = 50;
+    else if (currentZoom < 12) maxStations = 100;
+    else if (currentZoom < 14) maxStations = 200;
+
+    // If we need to limit stations, prioritize the cheapest ones
+    let finalStations = inBoundsStations;
+    if (inBoundsStations.length > maxStations) {
+      finalStations = inBoundsStations
+        .sort((a, b) => {
+          const priceA = a.prices.E10 || a.prices.B7 || Infinity;
+          const priceB = b.prices.E10 || b.prices.B7 || Infinity;
+          return priceA - priceB;
+        })
+        .slice(0, maxStations);
+    }
+
+    setFilteredStations(finalStations);
+    setShowSearchArea(false);
+  };
+
+  const getPriceColor = (prices: FuelStation['prices']): string => {
     const e10Price = prices.E10;
     const b7Price = prices.B7;
 
@@ -129,237 +169,283 @@ export default function FuelPriceMap() {
   };
 
   const formatPrice = (price: number | undefined): string => {
-    return price ? `${price}p` : 'N/A';
+    if (!price) return 'N/A';
+    const pounds = (price / 100).toFixed(2);
+    return `£${pounds}`;
+  };
+
+  const formatLastUpdated = (dateStr: string) => {
+    const date = new Date(dateStr.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+    return date.toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const renderAnnotations = () => {
-    const seenIds = new Set<string>();
-    
-    return fuelStations
+    // Create GeoJSON features with price data for clustering
+    const features: GeoJSONFeature[] = filteredStations
       .filter(station => {
-        if (seenIds.has(station.site_id)) {
-          return false;
-        }
-        seenIds.add(station.site_id);
-        return true;
+        return (
+          typeof station.location.longitude === 'number' &&
+          typeof station.location.latitude === 'number' &&
+          !isNaN(station.location.longitude) &&
+          !isNaN(station.location.latitude)
+        );
       })
-      .map((station) => (
-        <Mapbox.MarkerView
-          key={`${station.site_id}-${station.location.latitude}-${station.location.longitude}`}
-          coordinate={[station.location.longitude, station.location.latitude]}
+      .map(station => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [station.location.longitude, station.location.latitude]
+        },
+        properties: {
+          id: station.site_id,
+          price: station.prices.E10 || station.prices.B7 || 999,
+          color: getPriceColor(station.prices),
+          brand: station.brand,
+          address: station.address,
+          postcode: station.postcode,
+          prices: station.prices
+        }
+      }));
+
+    const geojson: GeoJSONCollection = {
+      type: 'FeatureCollection',
+      features
+    };
+
+    return (
+      <>
+        <Mapbox.ShapeSource
+          id="stationsSource"
+          shape={geojson}
+          cluster={true}
+          clusterMaxZoom={11}
+          clusterRadius={50}
+          clusterProperties={{
+            sum: ['+', ['get', 'price']],
+            point_count: ['get', 'point_count']
+          }}
         >
-          <TouchableOpacity
-            onPress={() => setSelectedStation(station)}
-            style={[styles.marker, { backgroundColor: getPriceColor(station.prices) }]}
+          {/* Render clusters */}
+          <Mapbox.CircleLayer
+            id="clusters"
+            filter={['has', 'point_count']}
+            style={{
+              circleColor: [
+                'step',
+                ['/', ['get', 'sum'], ['get', 'point_count']], // Average price
+                '#4CAF50', // Green for cheap
+                140,       // If average price >= 140
+                '#FF9800', // Orange for medium
+                150,       // If average price >= 150
+                '#F44336'  // Red for expensive
+              ],
+              circleRadius: [
+                'step',
+                ['get', 'point_count'],
+                20,  // Default radius
+                10,  // Then radius = 25
+                25,  // If point_count >= 50
+                50,  // Then radius = 30
+                30
+              ],
+              circleOpacity: 0.84,
+              circleStrokeWidth: 2,
+              circleStrokeColor: 'white'
+            }}
+          />
+
+          {/* Render cluster count */}
+          <Mapbox.SymbolLayer
+            id="cluster-count"
+            filter={['has', 'point_count']}
+            style={{
+              textField: ['get', 'point_count'],
+              textSize: 14,
+              textColor: '#FFFFFF',
+              textAllowOverlap: true,
+              textIgnorePlacement: true
+            }}
+          />
+
+          {/* Render individual stations */}
+          <Mapbox.CircleLayer
+            id="unclustered-points"
+            filter={['!', ['has', 'point_count']]}
+            style={{
+              circleColor: ['get', 'color'],
+              circleRadius: 12,
+              circleStrokeWidth: 2,
+              circleStrokeColor: 'white'
+            }}
+          />
+
+          <Mapbox.SymbolLayer
+            id="unclustered-labels"
+            filter={['!', ['has', 'point_count']]}
+            style={{
+              textField: '£',
+              textSize: 12,
+              textColor: '#FFFFFF',
+              textAllowOverlap: true,
+              textIgnorePlacement: true
+            }}
+          />
+        </Mapbox.ShapeSource>
+
+        {/* Add a separate source for handling clicks */}
+        <Mapbox.ShapeSource
+          id="stationsClickSource"
+          shape={geojson}
+          cluster={false}
+        >
+          <Mapbox.CircleLayer
+            id="station-click-layer"
+            style={{
+              circleRadius: 12,
+              circleOpacity: 0
+            }}
+            onPress={e => {
+              const feature = e.features[0];
+              if (feature) {
+                const station = fuelStations.find(s => s.site_id === feature.properties.id);
+                if (station) {
+                  setSelectedStation(station);
+                }
+              }
+            }}
+          />
+        </Mapbox.ShapeSource>
+
+        {selectedStation && (
+          <Mapbox.MarkerView
+            coordinate={[selectedStation.location.longitude, selectedStation.location.latitude]}
+            anchor={{x: 0.5, y: 0}}
           >
-            <Text style={styles.markerText}>£</Text>
-          </TouchableOpacity>
-        </Mapbox.MarkerView>
-      ));
+            <View className="bg-white rounded-lg shadow-lg p-3 mb-2">
+              <View className="flex-row items-center mb-2">
+                <Image 
+                  source={BrandLogos[selectedStation.brand] || BrandLogos.default}
+                  className="w-6 h-6 mr-2"
+                />
+                <Text className="font-bold flex-1">{selectedStation.brand}</Text>
+                <TouchableOpacity 
+                  onPress={() => setSelectedStation(null)}
+                  className="ml-2"
+                >
+                  <Text className="text-gray-500">✕</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <Text className="text-gray-600 mb-1">{selectedStation.address}</Text>
+              <Text className="text-gray-500 text-sm mb-2">{selectedStation.postcode}</Text>
+              
+              <View className="flex-row justify-between mt-1">
+                {selectedStation.prices.E10 && (
+                  <View>
+                    <Text className="text-sm text-gray-500">E10</Text>
+                    <Text className="font-bold">£{selectedStation.prices.E10.toFixed(1)}p</Text>
+                  </View>
+                )}
+                {selectedStation.prices.B7 && (
+                  <View>
+                    <Text className="text-sm text-gray-500">Diesel</Text>
+                    <Text className="font-bold">£{selectedStation.prices.B7.toFixed(1)}p</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </Mapbox.MarkerView>
+        )}
+      </>
+    );
   };
 
-  const renderLegend = () => (
-    <View style={styles.legend}>
-      <View style={styles.legendRow}>
-        <View style={[styles.legendMarker, { backgroundColor: '#4CAF50' }]} />
-        <Text style={styles.legendText}>Cheap (E10 ≤ 135p, Diesel ≤ 140p)</Text>
-      </View>
-      <View style={styles.legendRow}>
-        <View style={[styles.legendMarker, { backgroundColor: '#FFA726' }]} />
-        <Text style={styles.legendText}>Average</Text>
-      </View>
-      <View style={styles.legendRow}>
-        <View style={[styles.legendMarker, { backgroundColor: '#F44336' }]} />
-        <Text style={styles.legendText}>Expensive (E10 ≥ 145p, Diesel ≥ 150p)</Text>
-      </View>
-    </View>
-  );
-
-  if (error) {
-    return (
-      <SafeAreaView style={styles.errorContainer}>
-        <Text style={styles.errorText}>Error: {error}</Text>
-      </SafeAreaView>
-    );
-  }
+  const [priceStats, setPriceStats] = useState<{
+    E10: { min: number; max: number };
+    B7: { min: number; max: number };
+  }>({
+    E10: { min: 0, max: 0 },
+    B7: { min: 0, max: 0 }
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
-      {lastUpdated && (
-        <View style={styles.header}>
-          <Text style={styles.headerText}>Last Updated: {lastUpdated}</Text>
-          <Text style={styles.headerText}>
+    <SafeAreaView className="flex-1 bg-white">
+      <View className="bg-white shadow-sm">
+        <View className="flex-row justify-between items-center px-4 py-2">
+          <Text className="text-base font-medium text-gray-900">
+            {loading ? `Loading... ${loadingProgress.toFixed(0)}%` : 'Fuel Prices'}
+          </Text>
+          {lastUpdated && (
+            <Text className="text-sm text-gray-500">
+              Last updated: {formatLastUpdated(lastUpdated)}
+            </Text>
+          )}
+          <TouchableOpacity 
+            className="p-2 rounded-full bg-blue-50" 
+            onPress={() => fetchData(true)}
+          >
+            <Text className="text-blue-600 text-lg">↻</Text>
+          </TouchableOpacity>
+        </View>
+        {priceStats.E10.min > 0 && (
+          <Text className="text-sm text-gray-600 px-4 pb-2">
             E10: {formatPrice(priceStats.E10.min)} - {formatPrice(priceStats.E10.max)} | 
             Diesel: {formatPrice(priceStats.B7.min)} - {formatPrice(priceStats.B7.max)}
           </Text>
-        </View>
-      )}
-      <View style={styles.mapContainer}>
+        )}
+      </View>
+      
+      <View className="flex-1">
         <Mapbox.MapView
           ref={mapRef}
-          style={styles.map}
+          style={{ flex: 1, minHeight: 500 }}
           styleURL="mapbox://styles/mapbox/streets-v12"
           compassEnabled={true}
           zoomEnabled={true}
           scrollEnabled={true}
           rotateEnabled={true}
+          onMapIdle={e => {
+            if (e.properties.bounds && e.properties.zoomLevel) {
+              setCurrentBounds(e.properties.bounds);
+              setCurrentZoom(e.properties.zoomLevel);
+              setShowSearchArea(true);
+            }
+          }}
         >
           <Mapbox.Camera
             defaultSettings={{
-              centerCoordinate: [-1.4868, 52.3914], // Coventry coordinates
+              centerCoordinate: [-1.4868, 52.3914],
               zoomLevel: 9
             }}
+            animationMode="none"
           />
           {renderAnnotations()}
+          {showSearchArea && (
+            <TouchableOpacity
+              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-500 px-4 py-2 rounded-full shadow-lg"
+              onPress={() => {
+                if (currentBounds) {
+                  filterStationsInBounds();
+                }
+              }}
+            >
+              <Text className="text-white font-semibold">Search This Area</Text>
+            </TouchableOpacity>
+          )}
+          
+          {loading && (
+            <View className="absolute inset-0 bg-white/80 items-center justify-center">
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text className="mt-2 text-base text-gray-700">{loadingProgress.toFixed(0)}% Complete</Text>
+            </View>
+          )}
         </Mapbox.MapView>
-        {renderLegend()}
-        {selectedStation && (
-          <View style={styles.stationInfo}>
-            <View style={styles.stationHeader}>
-              <Text style={styles.stationName}>{selectedStation.brand}</Text>
-              <TouchableOpacity onPress={() => setSelectedStation(null)}>
-                <Text style={styles.closeButton}>×</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.stationAddress}>{selectedStation.address}</Text>
-            <Text style={styles.stationPostcode}>{selectedStation.postcode}</Text>
-            <View style={styles.priceContainer}>
-              <Text style={styles.priceText}>E10: {formatPrice(selectedStation.prices.E10)}</Text>
-              <Text style={styles.priceText}>Diesel: {formatPrice(selectedStation.prices.B7)}</Text>
-            </View>
-          </View>
-        )}
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  mapContainer: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  map: {
-    flex: 1,
-  },
-  header: {
-    padding: 10,
-    backgroundColor: '#f5f5f5',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  headerText: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
-  },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-  },
-  marker: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'red',
-    borderWidth: 2,
-    borderColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  markerText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  legend: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  legendMarker: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-  legendText: {
-    fontSize: 12,
-    color: '#333',
-  },
-  stationInfo: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    left: 20,
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  stationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  stationName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  closeButton: {
-    fontSize: 24,
-    color: '#666',
-    padding: 4,
-  },
-  stationAddress: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  stationPostcode: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  priceText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-});
