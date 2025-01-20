@@ -37,7 +37,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Map',
-          headerTitle: 'Fuel Price Map',
+          headerTitle: 'CheapestFuel UK',
           tabBarIcon: ({ color }) => <TabBarIcon name="map" color={color} />,
         }}
       />
