@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated, Easing } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated, Easing, StyleSheet } from 'react-native';
 import Mapbox, {CircleLayerStyle, SymbolLayerStyle, UserLocation } from '@rnmapbox/maps';
 import { FuelPriceService, FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
 import { MAPBOX_ACCESS_TOKEN } from '../config/mapbox';
+import * as Location from 'expo-location';
 
 // Initialize Mapbox
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
@@ -66,12 +67,21 @@ const formatPrice = (price: number): string => {
 };
 
 const formatLastUpdated = (timestamp: string): string => {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('en-GB', { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: false 
-  });
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) {
+      return 'Unknown';
+    }
+    return date.toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  } catch (e) {
+    return 'Unknown';
+  }
 };
 
 const FuelPriceMap: React.FC = () => {
@@ -87,12 +97,23 @@ const FuelPriceMap: React.FC = () => {
   const [showSearchArea, setShowSearchArea] = useState(false);
   const [currentBounds, setCurrentBounds] = useState<[number, number, number, number] | null>(null);
   const [currentZoom, setCurrentZoom] = useState(9);
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [priceStats, setPriceStats] = useState<PriceStats>({
     E10: { min: 0, max: 0 },
     B7: { min: 0, max: 0 }
   });
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [locationPermission, setLocationPermission] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Initial data fetch
+    fetchData();
+  }, []); // Empty dependency array means this runs once on mount
+
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
 
   useEffect(() => {
     if (selectedStation) {
@@ -116,19 +137,26 @@ const FuelPriceMap: React.FC = () => {
   const fetchData = async (forceRefresh: boolean = false) => {
     setLoading(true);
     setError(null);
-    setLastUpdated(null);
     try {
       const service = FuelPriceService.getInstance();
       const stations = await service.fetchFuelPrices(
         (progress) => setLoadingProgress(progress),
         forceRefresh
       );
+      
+      // Get the most recent last_updated timestamp from all stations
+      let mostRecentUpdate = null;
+      stations.forEach(station => {
+        if (station.last_updated) {
+          if (!mostRecentUpdate || new Date(station.last_updated) > new Date(mostRecentUpdate)) {
+            mostRecentUpdate = station.last_updated;
+          }
+        }
+      });
+      
       setFuelStations(stations);
       setFilteredStations(stations);
-      const updatedTime = service.getLastUpdated();
-      if (updatedTime) {
-        setLastUpdated(updatedTime);
-      }
+      setLastUpdated(mostRecentUpdate);
       
       // Calculate price stats
       const stats: PriceStats = {
@@ -160,10 +188,6 @@ const FuelPriceMap: React.FC = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const filterStationsInBounds = () => {
     if (!currentBounds) return;
@@ -337,15 +361,45 @@ const FuelPriceMap: React.FC = () => {
     );
   };
 
-  const handleLocationPress = useCallback(() => {
-    if (userLocation && cameraRef.current) {
-      cameraRef.current.setCamera({
-        centerCoordinate: userLocation,
-        zoomLevel: 14,
-        animationDuration: 1000
+  const requestLocationPermission = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    setLocationPermission(status === 'granted');
+  };
+
+  const handleLocationPress = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setError('Permission to access location was denied');
+        return;
+      }
+
+      setLoading(true);
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High
       });
+      
+      const { latitude, longitude } = location.coords;
+      const coordinates: [number, number] = [longitude, latitude];
+      setCurrentLocation(coordinates);
+      
+      // Ensure the camera ref exists and update it
+      if (mapRef.current && cameraRef.current) {
+        try {
+          await cameraRef.current.flyTo(coordinates, 1000);
+          await cameraRef.current.zoomTo(15, 1000);
+        } catch (err) {
+          console.error('Camera update error:', err);
+        }
+      }
+    } catch (err) {
+      console.error('Location error:', err);
+      setError('Error getting location');
+    } finally {
+      setLoading(false);
     }
-  }, [userLocation]);
+  }, []);
 
   const handleLocationUpdate = useCallback((location: any) => {
     if (location.coords) {
@@ -353,97 +407,60 @@ const FuelPriceMap: React.FC = () => {
     }
   }, []);
 
+  const handleMapIdle = useCallback((e: MapboxMapIdleEvent) => {
+    if (e.properties?.bounds && e.properties?.zoomLevel) {
+      setCurrentBounds(e.properties.bounds);
+      setCurrentZoom(e.properties.zoomLevel);
+      setShowSearchArea(true);
+    }
+  }, []);
+
+  const handleMapPress = useCallback(() => {
+    setSelectedStation(null);
+  }, []);
+
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="bg-white shadow-sm">
-        <View className="flex-row justify-between items-center px-4 py-2">
-          <Text className="text-sm text-gray-500">
-            {lastUpdated ? `Last updated: ${formatLastUpdated(lastUpdated)}` : ''}
-          </Text>
-          <TouchableOpacity 
-            className="p-2 rounded-full bg-blue-50" 
-            onPress={() => fetchData(true)}
-          >
-            <Text className="text-blue-600 text-lg">↻</Text>
-          </TouchableOpacity>
-        </View>
-
-        {priceStats.E10.min > 0 && (
-          <Text className="text-sm text-gray-600 px-4 pb-2">
-            E10: {formatPrice(priceStats.E10.min)} - {formatPrice(priceStats.E10.max)} | 
-            Diesel: {formatPrice(priceStats.B7.min)} - {formatPrice(priceStats.B7.max)}
-          </Text>
-        )}
-      </View>
-
-      <View className="flex-1 relative">
+    <SafeAreaView style={{ flex: 1 }}>
+      <View style={styles.container}>
         <Mapbox.MapView
           ref={mapRef}
-          style={{ flex: 1 }}
-          styleURL="mapbox://styles/mapbox/streets-v12"
+          style={styles.map}
           logoEnabled={false}
           compassEnabled={true}
-          pitchEnabled={false}
-          zoomEnabled={true}
-          scrollEnabled={true}
-          rotateEnabled={true}
-          onMapIdle={useCallback((e: MapboxMapIdleEvent) => {
-            if (e.properties?.bounds && e.properties?.zoomLevel) {
-              setCurrentBounds(e.properties.bounds);
-              setCurrentZoom(e.properties.zoomLevel);
-              setShowSearchArea(true);
-            }
-          }, [])}
-          onPress={() => setSelectedStation(null)}
+          onMapIdle={handleMapIdle}
+          onPress={handleMapPress}
         >
           <Mapbox.Camera
             ref={cameraRef}
-            defaultSettings={{
-              centerCoordinate: [-1.4868, 52.3914],
-              zoomLevel: 9
-            }}
-            animationMode="flyTo"
-            animationDuration={1000}
+            zoomLevel={currentZoom}
+            centerCoordinate={currentLocation || [-1.78, 52.48]}
           />
-          
           <UserLocation 
-            visible={true}
+            visible={locationPermission}
             onUpdate={handleLocationUpdate}
             minDisplacement={10}
           />
-          
           {renderAnnotations()}
-
-          {userLocation && (
-            <TouchableOpacity
-              className="absolute top-4 right-4 bg-white p-3 rounded-full shadow-lg"
-              onPress={handleLocationPress}
-            >
-              <Text style={{ fontSize: 20 }}>📍</Text>
-            </TouchableOpacity>
-          )}
-          
-          {showSearchArea && (
-            <TouchableOpacity
-              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-500 px-4 py-2 rounded-full shadow-lg"
-              onPress={() => {
-                if (currentBounds) {
-                  filterStationsInBounds();
-                }
-              }}
-            >
-              <Text className="text-white font-semibold">Search This Area</Text>
-            </TouchableOpacity>
-          )}
-          
-          {loading && (
-            <View className="absolute inset-0 bg-white/80 items-center justify-center">
-              <ActivityIndicator size="large" color="#007AFF" />
-              <Text className="mt-2 text-base text-gray-700">{loadingProgress.toFixed(0)}% Complete</Text>
-            </View>
-          )}
         </Mapbox.MapView>
 
+        {/* Last updated info */}
+        {lastUpdated && (
+          <View style={styles.lastUpdatedContainer}>
+            <Text style={styles.lastUpdatedText}>
+              Last updated: {formatLastUpdated(lastUpdated)}
+            </Text>
+          </View>
+        )}
+
+        {/* Loading overlay */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>{loadingProgress.toFixed(0)}% Complete</Text>
+          </View>
+        )}
+
+        {/* Station details */}
         {selectedStation && (
           <Animated.View 
             className="absolute bottom-0 left-0 right-0 bg-white"
@@ -527,9 +544,80 @@ const FuelPriceMap: React.FC = () => {
             </View>
           </Animated.View>
         )}
+        
+        {userLocation && (
+          <TouchableOpacity
+            className="absolute top-4 right-4 bg-white p-3 rounded-full shadow-lg"
+            onPress={() => {
+              if (userLocation && cameraRef.current) {
+                cameraRef.current.setCamera({
+                  centerCoordinate: userLocation,
+                  zoomLevel: 14,
+                  animationDuration: 1000
+                });
+              }
+            }}
+          >
+            <Text style={{ fontSize: 20 }}>📍</Text>
+          </TouchableOpacity>
+        )}
+        
+        {showSearchArea && (
+          <TouchableOpacity
+            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-500 px-4 py-2 rounded-full shadow-lg"
+            onPress={() => {
+              if (currentBounds) {
+                filterStationsInBounds();
+              }
+            }}
+          >
+            <Text className="text-white font-semibold">Search This Area</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  map: {
+    flex: 1,
+  },
+  lastUpdatedContainer: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 8,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  lastUpdatedText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 16,
+    color: '#666',
+  },
+});
 
 export default FuelPriceMap;

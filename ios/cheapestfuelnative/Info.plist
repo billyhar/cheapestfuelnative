@@ -47,6 +47,12 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

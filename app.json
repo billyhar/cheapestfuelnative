@@ -21,7 +21,10 @@
       },
       "appleTeamId": "RXC4M6A76Q",
       "infoPlist": {
-        "UIViewControllerBasedStatusBarAppearance": true
+        "UIViewControllerBasedStatusBarAppearance": true,
+        "NSLocationWhenInUseUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.",
+        "NSLocationAlwaysUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area."
       }
     },
     "android": {
@@ -29,7 +32,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.creativebillyy.cheapestfuelnative"
+      "package": "com.creativebillyy.cheapestfuelnative",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {
       "bundler": "metro",
