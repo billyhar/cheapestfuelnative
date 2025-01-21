@@ -79,7 +79,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
       const url = `maps:0,0?q=${label}@${latLng}`;
       Linking.openURL(url);
     } else {
-      const url = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${station.brand} ${station.address}`)}`;
       Linking.openURL(url);
     }
   };
@@ -136,7 +136,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
     >
       <View className="px-4 pt-4 pb-8">
         {/* Header */}
-        <View className="flex-row items-center mb-4">
+        <View className="flex-row items-top mb-4">
           <Image 
             source={typeof getBrandLogo(station.brand) === 'string' 
               ? { uri: getBrandLogo(station.brand) } 
@@ -184,7 +184,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
 
         {/* Directions Button */}
         <TouchableOpacity
-          className="bg-blue-500 rounded-2xl p-4 flex-row items-center justify-center"
+          className="bg-brand rounded-2xl p-4 flex-row items-center justify-center"
           onPress={handleGetDirections}
         >
           <Text className="text-white font-semibold text-lg">Get Directions</Text>

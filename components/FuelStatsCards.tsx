@@ -100,7 +100,7 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect 
             className={`flex-1 py-3 rounded-xl ${selectedFuelType === 'B7' ? 'bg-blue-50' : ''}`}
             onPress={() => setSelectedFuelType('B7')}
           >
-            <Text className={`text-center font-semibold ${selectedFuelType === 'B7' ? 'text-blue-600' : 'text-gray-600'}`}>
+            <Text className={`text-center font-semibold ${selectedFuelType === 'B7' ? 'text-brand' : 'text-gray-600'}`}>
               Diesel (B7)
             </Text>
           </TouchableOpacity>
@@ -121,7 +121,7 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect 
               resizeMode="contain"
             />
             <View className="flex-1">
-              <Text className="text-2xl font-bold text-blue-600">
+              <Text className="text-2xl font-bold text-brand">
                 {formatPrice(cheapestStation.price)}
               </Text>
               <Text className="text-sm text-gray-600">{cheapestStation.station}</Text>

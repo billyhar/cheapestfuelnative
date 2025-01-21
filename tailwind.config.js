@@ -13,6 +13,7 @@ module.exports = {
         success: '#34C759',
         warning: '#FF9500',
         error: '#FF3B30',
+        brand: '#1B75BA',
       },
     },
   },
