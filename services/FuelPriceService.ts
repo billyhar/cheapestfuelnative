@@ -189,10 +189,11 @@ export class FuelPriceService {
     try {
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
+        const { data, timestamp, lastUpdated } = JSON.parse(cached);
         if (Date.now() - timestamp < CACHE_EXPIRY) {
           this.cachedData = data;
           this.lastFetchTime = timestamp;
+          this.lastUpdated = lastUpdated;
           return data;
         }
       }
@@ -209,7 +210,8 @@ export class FuelPriceService {
         CACHE_KEY,
         JSON.stringify({
           data,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          lastUpdated: this.lastUpdated
         })
       );
     } catch (error) {
@@ -245,11 +247,17 @@ export class FuelPriceService {
         try {
           const response = await axios.get(source.url, { timeout: 10000 });
           const result = source.transformResponse(response.data);
+          
+          // Validate the timestamp
           if (result.last_updated) {
-            if (!latestUpdate || new Date(result.last_updated) > new Date(latestUpdate)) {
-              latestUpdate = result.last_updated;
+            const date = new Date(result.last_updated);
+            if (!isNaN(date.getTime())) {
+              if (!latestUpdate || new Date(result.last_updated) > new Date(latestUpdate)) {
+                latestUpdate = result.last_updated;
+              }
             }
           }
+          
           allStations.push(...result.stations);
           onProgress?.((index + 1) / totalSources);
         } catch (error) {
@@ -259,7 +267,10 @@ export class FuelPriceService {
 
       await Promise.all(fetchPromises);
 
-      this.lastUpdated = latestUpdate;
+      // If no API provided a last_updated timestamp, use the current time
+      const currentTime = new Date().toISOString();
+      this.lastUpdated = latestUpdate || currentTime;
+      
       this.cachedData = allStations;
       this.lastFetchTime = Date.now();
       await this.saveToCache(allStations);
