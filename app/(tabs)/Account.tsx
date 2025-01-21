@@ -4,7 +4,7 @@ import { AppTheme } from '../../constants/BrandAssets';
 export default function SettingsScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
+      <Text style={styles.title}>Account</Text>
       <Text style={styles.subtitle}>Coming soon!</Text>
     </View>
   );
