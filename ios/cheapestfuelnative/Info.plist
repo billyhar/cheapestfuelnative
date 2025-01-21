@@ -19,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>0.0.1</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -27,7 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>myapp</string>
+          <string>cheapestfuel</string>
           <string>com.billyhar.cheapest-fuel-native</string>
         </array>
       </dict>
@@ -47,11 +47,11 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.</string>
     <key>NSLocationAlwaysUsageDescription</key>
+    <string>We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
     <string>We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.</string>
     <key>NSUserActivityTypes</key>
     <array>
@@ -82,6 +82,6 @@
     <key>UIUserInterfaceStyle</key>
     <string>Automatic</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
-    <false/>
+    <true/>
   </dict>
 </plist>

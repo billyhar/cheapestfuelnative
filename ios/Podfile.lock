@@ -1631,7 +1631,7 @@ PODS:
     - React-logger (= 0.76.6)
     - React-perflogger (= 0.76.6)
     - React-utils (= 0.76.6)
-  - RNCAsyncStorage (2.1.0):
+  - RNCAsyncStorage (1.23.1):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2153,7 +2153,7 @@ SPEC CHECKSUMS:
   React-utils: e6697b03f21c7ac57b075d848cda7882662cabf7
   ReactCodegen: 484b223748d7489d7036db1cbf79896d297e33a7
   ReactCommon: 832cdd669aeecd430d9ca1975d15676b38d0b263
-  RNCAsyncStorage: fe98f1b459a87b80f12207da80c50b3a3abb6081
+  RNCAsyncStorage: a927b768986f83467b635cf6d7559e6edb46db7a
   rnmapbox-maps: d184c8d3213acf4c97ec71fbbb6f9d4954552d80
   RNReanimated: 9ee6347ca0aa3cf78cae715455e781728ae142e2
   RNScreens: d022507f2b6d76c73335e9e35aedcf7bb2f791b0
@@ -2161,6 +2161,6 @@ SPEC CHECKSUMS:
   Turf: aa2ede4298009639d10db36aba1a7ebaad072a5e
   Yoga: be6f55a028e86c83ae066f018e9b5d24ffc45436
 
-PODFILE CHECKSUM: 559246986165be2ab12b847feda4673af906e067
+PODFILE CHECKSUM: c0ef1bd421f0d680934a075141794331f177a43d
 
 COCOAPODS: 1.16.2
