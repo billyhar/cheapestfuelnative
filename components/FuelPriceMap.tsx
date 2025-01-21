@@ -303,17 +303,26 @@ const FuelPriceMap: React.FC = () => {
 
     const unclusteredPointStyle: CircleLayerStyle = {
       circleColor: ['get', 'color'],
-      circleRadius: 12,
+      circleRadius: 32,
       circleStrokeWidth: 2,
-      circleStrokeColor: 'white'
+      circleStrokeColor: 'white',
+
     };
 
     const unclusteredLabelStyle: SymbolLayerStyle = {
-      textField: '£',
-      textSize: 12,
+      textField: ['format',
+        '£', { 'font-scale': 0.8 },
+        ['number-format', 
+          ['/', ['round', ['*', ['/', ['get', 'price'], 100], 100]], 100],
+          { 'min-fraction-digits': 2, 'max-fraction-digits': 2, 'locale': 'en-GB' }
+        ], 
+        { 'font-scale': 1.2, 'text-font': ['DIN Offc Pro Black', 'Arial Unicode MS Bold'] }
+      ],
+      textSize: 13,
       textColor: '#FFFFFF',
       textAllowOverlap: true,
-      textIgnorePlacement: true
+      textIgnorePlacement: true,
+      textPadding: 24,
     };
 
     return (
@@ -424,7 +433,7 @@ const FuelPriceMap: React.FC = () => {
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading fuel prices ⛽️ - {loadingProgress.toFixed(0)}%</Text>
+          <Text style={styles.loadingText}>Loading fuel prices ⛽️</Text>
         </View>
       )}
 
