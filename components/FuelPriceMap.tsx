@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated, Easing, StyleSheet } from 'react-native';
 import Mapbox, {CircleLayerStyle, SymbolLayerStyle, UserLocation, MapState} from '@rnmapbox/maps';
-import type { OnPressEvent } from '@rnmapbox/maps';
 import { FuelPriceService, FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
 import { MAPBOX_ACCESS_TOKEN } from '../config/mapbox';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-
+import StationDetailsDialog from './StationDetailsDialog';
 
 // Initialize Mapbox
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
@@ -60,29 +59,6 @@ const getPriceColor = (prices: FuelStation['prices']): string => {
 
 const formatPrice = (price: number): string => {
   return `£${(price / 100).toFixed(2)}`;
-};
-
-const formatLastUpdated = (timestamp: string | null): string => {
-  try {
-    if (!timestamp) {
-      return 'Unknown';
-    }
-    
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) {
-      return 'Unknown';
-    }
-    
-    return date.toLocaleString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-  } catch (e) {
-    return 'Unknown';
-  }
 };
 
 const FuelPriceMap: React.FC = () => {
@@ -336,7 +312,7 @@ const FuelPriceMap: React.FC = () => {
           sum: ['+', ['get', 'price']],
           point_count: ['get', 'point_count']
         }}
-        onPress={useCallback((e: OnPressEvent) => {
+        onPress={useCallback((e: any) => {
           if (!e.features?.length) return;
           
           const feature = e.features[0];
@@ -382,28 +358,6 @@ const FuelPriceMap: React.FC = () => {
     );
   };
 
-  const getBrandLogo = (brand: string) => {
-    const normalizedBrand = brand.replace(/[^a-zA-Z]/g, '').toLowerCase();
-    
-    const brandMap: { [key: string]: string } = {
-      'asda': 'ASDA',
-      'bp': 'BP',
-      'morrisons': 'Morrisons',
-      'sainsburys': 'Sainsburys',
-      'tesco': 'Tesco',
-      'moto': 'Moto',
-      'mfg': 'MFG',
-      'rontec': 'Rontec',
-      'shell': 'Shell',
-      'esso': 'Esso',
-      'texaco': 'Texaco',
-      'jet': 'Jet'
-    };
-
-    const mappedBrand = brandMap[normalizedBrand] || brand;
-    return BrandLogos[mappedBrand] || require('../assets/default-fuel-logo.png');
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <Mapbox.MapView
@@ -439,87 +393,11 @@ const FuelPriceMap: React.FC = () => {
 
       {/* Station details */}
       {selectedStation && (
-        <Animated.View 
-          className="absolute bottom-0 left-0 right-0 bg-white"
-          style={{
-            transform: [{
-              translateY: slideAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [300, 0]
-              })
-            }],
-            opacity: slideAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 1]
-            })
-          }}
-        >
-          <View className="px-4 pt-4 pb-8">
-            {/* Header */}
-            <View className="flex-row items-center mb-4">
-              <Image 
-                source={typeof getBrandLogo(selectedStation.brand) === 'string' 
-                  ? { uri: getBrandLogo(selectedStation.brand) } 
-                  : getBrandLogo(selectedStation.brand)}
-                className="w-12 h-12 mr-3"
-                resizeMode="contain"
-              />
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">{selectedStation.brand}</Text>
-                <Text className="text-base text-gray-600 mt-1">{selectedStation.address}</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={() => setSelectedStation(null)}
-                className="h-8 w-8 rounded-full bg-gray-100 items-center justify-center"
-              >
-                <Text className="text-lg text-gray-500">×</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Price Info */}
-            <View className="flex-row justify-between bg-gray-50 rounded-2xl p-4 mb-4">
-              {selectedStation.prices.E10 && (
-                <View className="flex-1">
-                  <Text className="text-base text-gray-600 mb-1">Petrol (E10)</Text>
-                  <Text className="text-2xl font-bold text-gray-900">
-                    £{(selectedStation.prices.E10 / 100).toFixed(2)}
-                  </Text>
-                </View>
-              )}
-              {selectedStation.prices.B7 && (
-                <View className="flex-1 ml-6">
-                  <Text className="text-base text-gray-600 mb-1">Diesel</Text>
-                  <Text className="text-2xl font-bold text-gray-900">
-                    £{(selectedStation.prices.B7 / 100).toFixed(2)}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Directions Button */}
-            <TouchableOpacity
-              className="bg-blue-500 rounded-2xl p-4 flex-row items-center justify-center"
-              onPress={() => {
-                const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-                const latLng = `${selectedStation.location.latitude},${selectedStation.location.longitude}`;
-                const label = selectedStation.brand;
-                const url = Platform.select({
-                  ios: `${scheme}${label}@${latLng}`,
-                  android: `${scheme}${latLng}(${label})`
-                });
-                if (url) {
-                  Linking.openURL(url);
-                }
-              }}
-            >
-              <Text className="text-white font-semibold text-lg">Get Directions</Text>
-            </TouchableOpacity>
-
-            <Text className="text-sm text-gray-400 text-center mt-4">
-              {selectedStation.postcode}
-            </Text>
-          </View>
-        </Animated.View>
+        <StationDetailsDialog
+          station={selectedStation}
+          onClose={() => setSelectedStation(null)}
+          slideAnim={slideAnim}
+        />
       )}
       
       {userLocation && (
@@ -540,13 +418,13 @@ const FuelPriceMap: React.FC = () => {
       )}
       
       {/* Last updated info */}
-      {lastUpdated && (
+      {/* {lastUpdated && (
         <View style={styles.lastUpdatedContainer}>
           <Text style={styles.lastUpdatedText}>
-            Last updated: {formatLastUpdated(lastUpdated)}
+            Last updated: {lastUpdated}
           </Text>
         </View>
-      )}
+      )} */}
     </SafeAreaView>
   );
 };

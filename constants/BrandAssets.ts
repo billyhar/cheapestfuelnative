@@ -1,16 +1,16 @@
 export const BrandLogos: { [key: string]: string } = {
-  'ASDA': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/ASDA_logo_2017.svg/320px-ASDA_logo_2017.svg.png',
-  'BP': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/BP_Logo.svg/320px-BP_Logo.svg.png',
-  'Morrisons': 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f3/Morrisons_Logo.svg/320px-Morrisons_Logo.svg.png',
-  'Sainsburys': 'https://upload.wikimedia.org/wikipedia/en/thumb/8/8f/Sainsbury%27s_Logo.svg/320px-Sainsbury%27s_Logo.svg.png',
-  'Tesco': 'https://upload.wikimedia.org/wikipedia/en/thumb/b/b0/Tesco_Logo.svg/320px-Tesco_Logo.svg.png',
-  'Moto': 'https://upload.wikimedia.org/wikipedia/en/thumb/3/3f/Moto_Logo.svg/320px-Moto_Logo.svg.png',
-  'MFG': 'https://www.motorfuelgroup.com/wp-content/uploads/2019/03/MFG-Logo.png',
-  'Rontec': 'https://www.rontec-servicestations.co.uk/wp-content/themes/rontec/images/logo.png',
-  'Shell': 'https://upload.wikimedia.org/wikipedia/en/thumb/e/e8/Shell_logo.svg/320px-Shell_logo.svg.png',
-  'Esso': 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/ESSO_Logo.svg/320px-ESSO_Logo.svg.png',
-  'Texaco': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Texaco_Logo.svg/320px-Texaco_Logo.svg.png',
-  'Jet': 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Jet_Logo.svg/320px-Jet_Logo.svg.png'
+  'ASDA': require('../assets/asda.png'),
+  'BP': require('../assets/BP.png'),
+  'Morrisons': require('../assets/morrisons.png'),
+  'Sainsburys': require('../assets/sainsburys.png'),
+  'Tesco': require('../assets/tesco.png'),
+  'Moto': require('../assets/moto.png'),
+  'MFG': require('../assets/mfg.png'),
+  'Rontec': require('../assets/rontec.png'),
+  'Shell': require('../assets/shell.png'),
+  'Esso': require('../assets/esso.png'),
+  'Texaco': require('../assets/texaco.png'),
+  'Jet': require('../assets/jet.png')
 };
 
 export const AppTheme = {
