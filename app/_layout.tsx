@@ -14,10 +14,6 @@ export {
   ErrorBoundary,
 } from 'expo-router';
 
-export const unstable_settings = {
-  initialRouteName: '(tabs)',
-};
-
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
@@ -27,7 +23,9 @@ function RootLayoutNav() {
 
   useEffect(() => {
     console.log('Auth State:', { user, loading });
-    SplashScreen.hideAsync();
+    if (!loading) {
+      SplashScreen.hideAsync();
+    }
   }, [user, loading]);
 
   if (loading) {
@@ -37,10 +35,24 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
-        {!user ? (
-          <Stack.Screen name="auth" options={{ headerShown: false }} />
+        {user === null ? (
+          <Stack.Screen 
+            name="auth" 
+            options={{ 
+              headerShown: false,
+              animation: 'none',
+              title: 'Sign In'
+            }} 
+          />
         ) : (
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{ 
+              headerShown: false,
+              animation: 'none',
+              title: 'CheapestFuel'
+            }} 
+          />
         )}
       </Stack>
     </ThemeProvider>

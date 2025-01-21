@@ -21,7 +21,14 @@
       },
       "appleTeamId": "RXC4M6A76Q",
       "infoPlist": {
-        "UIViewControllerBasedStatusBarAppearance": true,
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "cheapestfuel"
+            ]
+          }
+        ],
         "NSLocationWhenInUseUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.",
         "NSLocationAlwaysUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area."
@@ -33,6 +40,18 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.creativebillyy.cheapestfuelnative",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "cheapestfuel"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {

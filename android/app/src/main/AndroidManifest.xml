@@ -29,6 +29,12 @@
         <data android:scheme="cheapestfuel"/>
         <data android:scheme="com.creativebillyy.cheapestfuelnative"/>
       </intent-filter>
+      <intent-filter android:autoVerify="true" data-generated="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="cheapestfuel"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+      </intent-filter>
     </activity>
   </application>
 </manifest>

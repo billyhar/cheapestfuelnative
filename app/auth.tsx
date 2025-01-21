@@ -1,82 +1,62 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, TextInput, TouchableOpacity, Text, ActivityIndicator, Alert } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { AppTheme } from '../constants/BrandAssets';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
 
   const handleSignIn = async () => {
-    if (!email) return Alert.alert('Please enter your email');
+    if (!email) {
+      Alert.alert('Error', 'Please enter your email');
+      return;
+    }
     
+    setIsLoading(true);
     try {
-      setLoading(true);
       await signIn(email);
       Alert.alert('Check your email', 'We sent you a magic link to sign in');
-    } catch (error) {
-      Alert.alert('Error', (error as Error).message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign in to CheapestFuel</Text>
+    <View className="flex-1 justify-center p-4 bg-white">
+      <View className="items-left mb-12">
+        <Text className="text-3xl text-black text-left font-bold mb-2">
+          CheapestFuel
+        </Text>
+        <Text className="text-gray-600 text-left text-lg">
+          Find the best fuel prices near you
+        </Text>
+      </View>
+
       <TextInput
-        style={styles.input}
-        placeholder="Email"
+        className="bg-gray-100 text-black p-4 rounded-lg mb-4 text-lg"
+        placeholder="Enter your email"
+        placeholderTextColor="#6B6678"
         value={email}
         onChangeText={setEmail}
-        autoCapitalize="none"
         keyboardType="email-address"
+        autoCapitalize="none"
+        editable={!isLoading}
       />
-      <TouchableOpacity 
-        style={styles.button}
+      
+      <TouchableOpacity
+        className={`bg-blue-500 p-4 rounded-lg ${isLoading ? 'opacity-50' : ''}`}
         onPress={handleSignIn}
-        disabled={loading}
+        disabled={isLoading}
       >
-        <Text style={styles.buttonText}>
-          {loading ? 'Sending...' : 'Send Magic Link'}
-        </Text>
+        {isLoading ? (
+          <ActivityIndicator color="white" size="small" />
+        ) : (
+          <Text className="text-white text-center font-bold text-lg">
+            Continue with Email
+          </Text>
+        )}
       </TouchableOpacity>
     </View>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-    backgroundColor: AppTheme.colors.background,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: AppTheme.colors.text,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: AppTheme.colors.border,
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 15,
-    backgroundColor: '#fff',
-  },
-  button: {
-    backgroundColor: AppTheme.colors.primary,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-}); 
+} 

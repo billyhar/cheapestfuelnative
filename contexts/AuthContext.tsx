@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 
-interface AuthContextType {
+export const AuthContext = createContext<{
   user: User | null;
   session: Session | null;
   loading: boolean;
@@ -14,9 +15,7 @@ interface AuthContextType {
     first_name?: string;
     avatar_url?: string;
   }) => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+}>({} as any);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -24,36 +23,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    // Check active sessions and subscribe to auth changes
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const initAuth = async () => {
+      try {
+        // Ensure we start with no session
+        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
+        
+        // Set up the auth state listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          console.log('Auth state changed:', { session });
+          setSession(session);
+          setUser(session?.user ?? null);
+        });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+        // Initial loading complete
+        setLoading(false);
 
-    return () => subscription.unsubscribe();
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        setLoading(false);
+      }
+    };
+
+    initAuth();
   }, []);
 
   const signIn = async (email: string) => {
     const redirectUrl = Linking.createURL('auth/callback');
+    
+    console.log('Signing in with redirect URL:', redirectUrl);
+    
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         emailRedirectTo: redirectUrl,
+        shouldCreateUser: true,
       },
     });
-    if (error) throw error;
+    
+    if (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
   };
 
   const signOut = async () => {
+    setLoading(true);
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    setLoading(false);
   };
 
   const updateProfile = async (data: {
@@ -62,17 +84,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     avatar_url?: string;
   }) => {
     if (!user) throw new Error('No user logged in');
-
     const { error } = await supabase
       .from('profiles')
       .update(data)
       .eq('id', user.id);
-
     if (error) throw error;
   };
 
   return (
-    <AuthContext.Provider 
+    <AuthContext.Provider
       value={{
         user,
         session,

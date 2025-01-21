@@ -28,7 +28,6 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>cheapestfuel</string>
-          <string>com.billyhar.cheapest-fuel-native</string>
         </array>
       </dict>
     </array>
@@ -82,6 +81,6 @@
     <key>UIUserInterfaceStyle</key>
     <string>Automatic</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
-    <true/>
+    <false/>
   </dict>
 </plist>
