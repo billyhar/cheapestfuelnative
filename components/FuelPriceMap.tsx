@@ -7,6 +7,7 @@ import { MAPBOX_ACCESS_TOKEN } from '../config/mapbox';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import StationDetailsDialog from './StationDetailsDialog';
+import FuelTypeFilter from './FuelTypeFilter';
 
 // Initialize Mapbox
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
@@ -49,8 +50,8 @@ interface MapboxFeatureEvent {
   point: [number, number];
 }
 
-const getPriceColor = (prices: FuelStation['prices']): string => {
-  const price = prices.E10 || prices.B7 || 0;
+const getPriceColor = (prices: FuelStation['prices'], selectedFuelType: 'E10' | 'B7'): string => {
+  const price = prices[selectedFuelType] || 0;
   if (price === 0) return '#808080'; // Gray for no price
   if (price < 140) return '#4CAF50'; // Green for cheap
   if (price < 150) return '#FF9800'; // Orange for medium
@@ -79,6 +80,7 @@ const FuelPriceMap: React.FC = () => {
   });
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locationPermission, setLocationPermission] = useState<boolean>(false);
+  const [selectedFuelType, setSelectedFuelType] = useState<'E10' | 'B7'>('E10');
 
   // London coordinates: -0.1276, 51.5074
   const defaultLocation: [number, number] = [-0.1276, 51.5074];
@@ -228,7 +230,8 @@ const FuelPriceMap: React.FC = () => {
             typeof station.location.longitude === 'number' &&
             typeof station.location.latitude === 'number' &&
             !isNaN(station.location.longitude) &&
-            !isNaN(station.location.latitude)
+            !isNaN(station.location.latitude) &&
+            station.prices[selectedFuelType] // Only show stations with selected fuel type
           );
         })
         .map(station => ({
@@ -239,8 +242,8 @@ const FuelPriceMap: React.FC = () => {
           },
           properties: {
             id: station.site_id,
-            price: station.prices.E10 || station.prices.B7 || 999,
-            color: getPriceColor(station.prices)
+            price: station.prices[selectedFuelType] || 999,
+            color: getPriceColor(station.prices, selectedFuelType)
           }
         }))
     };
@@ -278,16 +281,30 @@ const FuelPriceMap: React.FC = () => {
     };
 
     const unclusteredPointStyle: CircleLayerStyle = {
-      circleColor: ['get', 'color'],
-      circleRadius: 32,
-      circleStrokeWidth: 2,
+      circleColor: [
+        'case',
+        ['==', ['get', 'id'], selectedStation?.site_id || ''],
+        '#4A90E2', // Highlight color for selected station
+        ['get', 'color'] // Default color
+      ],
+      circleRadius: [
+        'case',
+        ['==', ['get', 'id'], selectedStation?.site_id || ''],
+        40, // Larger radius for selected station
+        32  // Default radius
+      ],
+      circleStrokeWidth: [
+        'case',
+        ['==', ['get', 'id'], selectedStation?.site_id || ''],
+        3, // Thicker border for selected station
+        2  // Default border width
+      ],
       circleStrokeColor: 'white',
-
     };
 
     const unclusteredLabelStyle: SymbolLayerStyle = {
       textField: ['format',
-        '£', { 'font-scale': 0.8 },
+        '⛽️ £',
         ['number-format', 
           ['/', ['round', ['*', ['/', ['get', 'price'], 100], 100]], 100],
           { 'min-fraction-digits': 2, 'max-fraction-digits': 2, 'locale': 'en-GB' }
@@ -383,6 +400,31 @@ const FuelPriceMap: React.FC = () => {
         {renderAnnotations()}
       </Mapbox.MapView>
 
+      {/* Controls container */}
+      <View className="absolute top-4 right-4 flex-row items-center space-x-2">
+        <FuelTypeFilter
+          selectedFuelType={selectedFuelType}
+          onFuelTypeChange={setSelectedFuelType}
+        />
+        
+        {userLocation && (
+          <TouchableOpacity
+            className="bg-white p-3 rounded-full shadow-lg"
+            onPress={() => {
+              if (userLocation && cameraRef.current) {
+                cameraRef.current.setCamera({
+                  centerCoordinate: userLocation,
+                  zoomLevel: 14,
+                  animationDuration: 1000
+                });
+              }
+            }}
+          >
+            <Ionicons name="navigate" size={24} color="blue" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Loading overlay */}
       {loading && (
         <View style={styles.loadingContainer}>
@@ -399,32 +441,6 @@ const FuelPriceMap: React.FC = () => {
           slideAnim={slideAnim}
         />
       )}
-      
-      {userLocation && (
-        <TouchableOpacity
-          className="absolute top-16 right-4 bg-white p-3 rounded-full shadow-lg"
-          onPress={() => {
-            if (userLocation && cameraRef.current) {
-              cameraRef.current.setCamera({
-                centerCoordinate: userLocation,
-                zoomLevel: 14,
-                animationDuration: 1000
-              });
-            }
-          }}
-        >
-          <Ionicons name="navigate" size={24} color="blue" />
-        </TouchableOpacity>
-      )}
-      
-      {/* Last updated info */}
-      {/* {lastUpdated && (
-        <View style={styles.lastUpdatedContainer}>
-          <Text style={styles.lastUpdatedText}>
-            Last updated: {lastUpdated}
-          </Text>
-        </View>
-      )} */}
     </SafeAreaView>
   );
 };

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, Platform, Linking, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Image, Platform, Linking, Animated, ActionSheetIOS, Alert } from 'react-native';
 import { FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
 
@@ -71,6 +71,53 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
     return BrandLogos[mappedBrand] || require('../assets/default-fuel-logo.png');
   };
 
+  const openMapsApp = (app: 'apple' | 'google') => {
+    const label = encodeURIComponent(station.brand);
+    const latLng = `${station.location.latitude},${station.location.longitude}`;
+
+    if (app === 'apple') {
+      const url = `maps:0,0?q=${label}@${latLng}`;
+      Linking.openURL(url);
+    } else {
+      const url = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+      Linking.openURL(url);
+    }
+  };
+
+  const handleGetDirections = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Apple Maps', 'Google Maps'],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            openMapsApp('apple');
+          } else if (buttonIndex === 2) {
+            openMapsApp('google');
+          }
+        }
+      );
+    } else {
+      // On Android, show an Alert dialog
+      Alert.alert(
+        'Choose Navigation App',
+        'Select your preferred navigation app',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Google Maps',
+            onPress: () => openMapsApp('google')
+          }
+        ]
+      );
+    }
+  };
+
   return (
     <Animated.View 
       className="absolute bottom-0 left-0 right-0 bg-white"
@@ -122,7 +169,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           )}
           {station.prices.B7 && (
             <View className="flex-1 ml-6">
-              <Text className="text-base text-gray-600 mb-1">Diesel</Text>
+              <Text className="text-base text-gray-600 mb-1">Diesel (B7)</Text>
               <Text className="text-2xl font-bold text-gray-900">
                 £{(station.prices.B7 / 100).toFixed(2)}
               </Text>
@@ -138,18 +185,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
         {/* Directions Button */}
         <TouchableOpacity
           className="bg-blue-500 rounded-2xl p-4 flex-row items-center justify-center"
-          onPress={() => {
-            const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-            const latLng = `${station.location.latitude},${station.location.longitude}`;
-            const label = station.brand;
-            const url = Platform.select({
-              ios: `${scheme}${label}@${latLng}`,
-              android: `${scheme}${latLng}(${label})`
-            });
-            if (url) {
-              Linking.openURL(url);
-            }
-          }}
+          onPress={handleGetDirections}
         >
           <Text className="text-white font-semibold text-lg">Get Directions</Text>
         </TouchableOpacity>

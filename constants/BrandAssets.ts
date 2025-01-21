@@ -10,7 +10,9 @@ export const BrandLogos: { [key: string]: string } = {
   'Shell': require('../assets/shell.png'),
   'Esso': require('../assets/esso.png'),
   'Texaco': require('../assets/texaco.png'),
-  'Jet': require('../assets/jet.png')
+  'Jet': require('../assets/jet.png'),
+  'Applegreen': require('../assets/applegreen.png'),
+  'SGN': require('../assets/sgn.png'),
 };
 
 export const AppTheme = {

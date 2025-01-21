@@ -166,6 +166,70 @@ const dataSources: FuelDataSource[] = [
       })),
       last_updated: data.last_updated
     })
+  },
+  {
+    url: 'https://applegreenstores.com/fuel-prices/data.json',
+    brand: 'Applegreen',
+    transformResponse: (data: APIResponse): DataSourceResponse => ({
+      stations: data.stations.map(station => ({
+        address: station.address,
+        brand: 'Applegreen',
+        location: station.location,
+        postcode: station.postcode,
+        prices: station.prices,
+        site_id: `applegreen-${station.site_id}`,
+        last_updated: data.last_updated
+      })),
+      last_updated: data.last_updated
+    })
+  },
+  {
+    url: 'https://fuelprices.esso.co.uk/latestdata.json',
+    brand: 'Esso',
+    transformResponse: (data: APIResponse): DataSourceResponse => ({
+      stations: data.stations.map(station => ({
+        address: station.address,
+        brand: 'Esso',
+        location: station.location,
+        postcode: station.postcode,
+        prices: station.prices,
+        site_id: `esso-${station.site_id}`,
+        last_updated: data.last_updated
+      })),
+      last_updated: data.last_updated
+    })
+  },
+  {
+    url: 'https://jetlocal.co.uk/fuel_prices_data.json',
+    brand: 'Jet',
+    transformResponse: (data: APIResponse): DataSourceResponse => ({
+      stations: data.stations.map(station => ({
+        address: station.address,
+        brand: 'Jet',
+        location: station.location,
+        postcode: station.postcode,
+        prices: station.prices,
+        site_id: `jet-${station.site_id}`,
+        last_updated: data.last_updated
+      })),
+      last_updated: data.last_updated
+    })
+  },
+  {
+    url: 'https://www.sgnretail.uk/files/data/SGN_daily_fuel_prices.json',
+    brand: 'SGN',
+    transformResponse: (data: APIResponse): DataSourceResponse => ({
+      stations: data.stations.map(station => ({
+        address: station.address,
+        brand: 'SGN',
+        location: station.location,
+        postcode: station.postcode,
+        prices: station.prices,
+        site_id: `sgn-${station.site_id}`,
+        last_updated: data.last_updated
+      })),
+      last_updated: data.last_updated
+    })
   }
 ];
 

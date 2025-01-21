@@ -1,10 +1,11 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Pressable, Image, View } from 'react-native';
 import { useColorScheme } from 'react-native';
 import { AppTheme } from '../../constants/BrandAssets';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import Logo from '../../assets/images/CheapestFuel.png';
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -38,7 +39,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Map',
-          headerTitle: 'CheapestFuel UK',
+          headerTitle: () => (
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Image
+                source={require('../../assets/images/CheapestFuel.png')}
+                style={{ height: 30, resizeMode: 'contain' }}
+              />
+            </View>
+          ),
           tabBarIcon: ({ color, focused }) => <Ionicons size={24} name={focused ? "map" : "map-outline"} color={color} />,
         }}
       />
