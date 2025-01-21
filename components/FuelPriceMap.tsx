@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import StationDetailsDialog from './StationDetailsDialog';
 import FuelTypeFilter from './FuelTypeFilter';
+import PriceLegend from './PriceLegend';
 
 // Initialize Mapbox
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
@@ -400,8 +401,11 @@ const FuelPriceMap: React.FC = () => {
         {renderAnnotations()}
       </Mapbox.MapView>
 
-      {/* Controls container */}
-      <View className="absolute top-4 right-4 flex-row items-center space-x-2">
+      {/* Price Legend */}
+      <PriceLegend />
+
+      {/* Bottom Controls Container */}
+      <View className="absolute bottom-8 left-4 right-4 flex-row items-center justify-center space-x-4">
         <FuelTypeFilter
           selectedFuelType={selectedFuelType}
           onFuelTypeChange={setSelectedFuelType}

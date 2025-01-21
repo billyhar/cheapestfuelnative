@@ -25,26 +25,13 @@ const FuelTypeFilter: React.FC<FuelTypeFilterProps> = ({
 
   return (
     <View>
-      <TouchableOpacity
-        onPress={toggleExpand}
-        className="bg-white rounded-full shadow-lg p-3 flex-row items-center mr-4"
-      >
-        <View 
-          className={`w-4 h-4 rounded-full ${selectedFuelType === 'E10' ? 'bg-green-500' : 'bg-black'}`}
-        />
-        <Text className="ml-2 font-semibold text-gray-700">
-          {selectedFuelType === 'E10' ? 'Petrol' : 'Diesel'}
-        </Text>
-        <Text className="ml-2 text-gray-400 rotate-90">›</Text>
-      </TouchableOpacity>
-
       <Animated.View
-        className="absolute top-14 bg-white rounded-2xl shadow-lg w-40 overflow-hidden"
+        className="absolute bottom-16 bg-white rounded-2xl shadow-lg w-40 overflow-hidden"
         style={{
           transform: [{
             translateY: slideAnim.interpolate({
               inputRange: [0, 1],
-              outputRange: [-50, 0],
+              outputRange: [50, 0],
             })
           }],
           opacity: slideAnim,
@@ -78,6 +65,19 @@ const FuelTypeFilter: React.FC<FuelTypeFilterProps> = ({
           </Text>
         </TouchableOpacity>
       </Animated.View>
+
+      <TouchableOpacity
+        onPress={toggleExpand}
+        className="bg-white rounded-full shadow-lg p-3 flex-row items-center mr-4"
+      >
+        <View 
+          className={`w-4 h-4 rounded-full ${selectedFuelType === 'E10' ? 'bg-green-500' : 'bg-black'}`}
+        />
+        <Text className="ml-2 font-semibold text-gray-700">
+          {selectedFuelType === 'E10' ? 'Petrol' : 'Diesel'}
+        </Text>
+        <Text className="ml-2 text-gray-400 rotate-90">›</Text>
+      </TouchableOpacity>
     </View>
   );
 };
