@@ -1,11 +1,12 @@
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Button } from '../../components/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfilePictureSetup() {
   const [image, setImage] = useState<string | null>(null);
@@ -13,6 +14,18 @@ export default function ProfilePictureSetup() {
   const [error, setError] = useState('');
   const router = useRouter();
   const { user, refreshUser } = useAuth();
+
+  useEffect(() => {
+    const checkNewUser = async () => {
+      const isNewUser = await AsyncStorage.getItem('isNewUser');
+      if (!isNewUser) {
+        // If not a new user, redirect to tabs
+        router.replace('/(tabs)');
+      }
+    };
+    
+    checkNewUser();
+  }, []);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -66,6 +79,8 @@ export default function ProfilePictureSetup() {
       if (updateError) throw updateError;
 
       await refreshUser();
+      // Remove new user flag after completing the setup
+      await AsyncStorage.removeItem('isNewUser');
       router.push('/(tabs)');
     } catch (err: any) {
       setError(err.message);
@@ -81,7 +96,7 @@ export default function ProfilePictureSetup() {
           Add a Profile Picture
         </Text>
         <Text className="text-gray-600 text-center mb-8">
-          Help others recognize you
+          This step is optional. You can always add or change your picture later.
         </Text>
 
         <TouchableOpacity
@@ -100,16 +115,17 @@ export default function ProfilePictureSetup() {
           )}
         </TouchableOpacity>
 
-        {error ? (
-          <Text className="text-red-500 text-center mb-4">{error}</Text>
-        ) : null}
-
         <View className="w-full space-y-4">
+          {error ? (
+            <Text className="text-red-500 text-center">{error}</Text>
+          ) : null}
+
           <Button
             onPress={handleSubmit}
             loading={loading}
-            text={image ? "Continue" : "Skip for now"}
-          />
+          >
+            {image ? 'Save Profile Picture' : 'Skip for Now'}
+          </Button>
         </View>
       </View>
     </View>

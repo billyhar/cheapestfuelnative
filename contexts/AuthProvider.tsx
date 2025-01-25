@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { decode } from 'base64-arraybuffer';
 import * as Linking from 'expo-linking';
 import { EMAIL_APPS } from '../constants/EmailApps';
+import { useRouter } from '../hooks/useRouter';
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<User | null>(null);
@@ -17,6 +18,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -83,9 +85,11 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   const signIn = async (email: string): Promise<void> => {
     try {
       const redirectUrl = Linking.createURL('auth/callback');
-      console.log('Using redirect URL:', redirectUrl);
+      console.log('=== Sign In Debug Log ===');
+      console.log('Email:', email);
+      console.log('Redirect URL:', redirectUrl);
 
-      const { error } = await supabase.auth.signInWithOtp({
+      const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           emailRedirectTo: redirectUrl,
@@ -93,7 +97,12 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         },
       });
 
-      if (error) throw error;
+      console.log('Sign in response:', { data, error });
+
+      if (error) {
+        console.error('Sign in error:', error);
+        throw error;
+      }
 
       Alert.alert(
         'Check your email',
@@ -125,15 +134,36 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
   const signOut = async (): Promise<void> => {
     try {
+      console.log('Starting sign out process');
       setIsLoading(true);
+
+      // Clear all auth-related storage
+      await AsyncStorage.multiRemove([
+        'supabase.auth.token',
+        'isNewUser',
+        'user',
+        'profile'
+      ]);
+
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase sign out error:', error);
+        throw error;
+      }
+
+      console.log('Successfully signed out from Supabase');
+
+      // Clear all state
       setUser(null);
+      setSession(null);
       setProfile(null);
-      await AsyncStorage.removeItem('supabase.auth.token');
+      setIsNewUser(false);
+
+      // Navigation will be handled by the root layout's auth state change effect
     } catch (error) {
       console.error('Sign out error:', error);
-      Alert.alert('Error', 'Failed to sign out');
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
     } finally {
       setIsLoading(false);
     }

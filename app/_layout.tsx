@@ -34,12 +34,17 @@ const RootLayoutNav = () => {
     const inAuthGroup = segments[0] === 'auth';
     console.log('Auth state:', { user: !!user, inAuthGroup, segments });
 
-    if (user && inAuthGroup) {
-      // Redirect to tabs if user is signed in and in auth group
-      router.replace('/(tabs)');
-    } else if (!user && !inAuthGroup) {
-      // Redirect to auth if user is not signed in and not in auth group
-      router.replace('/auth');
+    if (!loading) {
+      // Use setTimeout to ensure navigation happens after layout is complete
+      setTimeout(() => {
+        if (user && inAuthGroup) {
+          // Redirect to tabs if user is signed in and in auth group
+          router.replace('/(tabs)');
+        } else if (!user && !inAuthGroup) {
+          // Redirect to auth if user is not signed in and not in auth group
+          router.replace('/auth');
+        }
+      }, 0);
     }
   }, [user, loading, segments]);
 

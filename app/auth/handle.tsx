@@ -1,9 +1,10 @@
 import { View, Text, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../../components/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HandleSetup() {
   const [handle, setHandle] = useState('');
@@ -11,6 +12,18 @@ export default function HandleSetup() {
   const [error, setError] = useState('');
   const router = useRouter();
   const { user, refreshUser } = useAuth();
+
+  useEffect(() => {
+    const checkNewUser = async () => {
+      const isNewUser = await AsyncStorage.getItem('isNewUser');
+      if (!isNewUser) {
+        // If not a new user, redirect to tabs
+        router.replace('/(tabs)');
+      }
+    };
+    
+    checkNewUser();
+  }, []);
 
   const handleSubmit = async () => {
     if (!handle.trim()) {
@@ -48,17 +61,18 @@ export default function HandleSetup() {
           Choose Your Handle
         </Text>
         <Text className="text-gray-600 text-center mb-8">
-          This is how other users will identify you
+          This is how other users will identify you. Choose something unique!
         </Text>
         
         <View className="space-y-4">
           <TextInput
             className="bg-gray-100 p-4 rounded-lg"
-            placeholder="Enter your handle"
+            placeholder="Enter your handle (e.g. john123)"
             value={handle}
             onChangeText={setHandle}
             autoCapitalize="none"
             autoCorrect={false}
+            maxLength={30}
           />
           
           {error ? (
@@ -69,7 +83,7 @@ export default function HandleSetup() {
             onPress={handleSubmit}
             loading={loading}
           >
-            Continue
+            Continue to Profile Picture
           </Button>
         </View>
       </View>

@@ -1,18 +1,24 @@
-import { View, Text, TouchableOpacity, Image } from 'react-native';
+import { View, Text, TouchableOpacity, Image, Alert } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { useState } from 'react';
 
 export default function AccountScreen() {
   const { signOut, user, profile } = useAuth();
   const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
     try {
+      setIsLoggingOut(true);
       await signOut();
     } catch (error) {
       console.error('Error signing out:', error);
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -70,13 +76,16 @@ export default function AccountScreen() {
 
         <TouchableOpacity
           onPress={handleLogout}
-          className="flex-row items-center justify-between bg-red-50 p-4 rounded-xl"
+          disabled={isLoggingOut}
+          className={`flex-row items-center justify-between ${isLoggingOut ? 'bg-gray-100' : 'bg-red-50'} p-4 rounded-xl`}
         >
           <View className="flex-row items-center">
-            <MaterialIcons name="logout" size={24} color="#EF4444" />
-            <Text className="ml-3 text-red-500 font-medium">Logout</Text>
+            <MaterialIcons name="logout" size={24} color={isLoggingOut ? '#9CA3AF' : '#EF4444'} />
+            <Text className={`ml-3 font-medium ${isLoggingOut ? 'text-gray-400' : 'text-red-500'}`}>
+              {isLoggingOut ? 'Logging out...' : 'Logout'}
+            </Text>
           </View>
-          <MaterialIcons name="chevron-right" size={24} color="#EF4444" />
+          {!isLoggingOut && <MaterialIcons name="chevron-right" size={24} color="#EF4444" />}
         </TouchableOpacity>
       </View>
     </View>

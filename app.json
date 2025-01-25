@@ -75,7 +75,8 @@
         {
           "photosPermission": "The app needs access to your photos to let you pick an avatar."
         }
-      ]
+      ],
+      "expo-linking"
     ],
     "experiments": {
       "typedRoutes": true
