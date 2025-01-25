@@ -18,6 +18,7 @@ export default function AuthCallback() {
       console.log('Current segments:', segments);
 
       try {
+        let session;
         // Check if we have a code in the URL params
         const code = params?.code;
         if (!code) {
@@ -43,6 +44,7 @@ export default function AuthCallback() {
           if (sessionError) throw sessionError;
           if (!data?.session) throw new Error('No session data received');
           
+          session = data.session;
           console.log('Session established via deep link');
         } else {
           // Handle code from params
@@ -53,14 +55,30 @@ export default function AuthCallback() {
           if (sessionError) throw sessionError;
           if (!data?.session) throw new Error('No session data received');
           
+          session = data.session;
           console.log('Session established via params');
+        }
+
+        // Check if user profile exists
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          throw profileError;
         }
 
         // Wait a moment for the auth state to update
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Force a navigation reset to tabs
-        router.replace('/(tabs)');
+        // If no profile exists or no handle set, redirect to handle setup
+        if (!profile || !profile.handle) {
+          router.replace('/auth/handle');
+        } else {
+          router.replace('/(tabs)');
+        }
       } catch (err) {
         console.error('Auth error:', err);
         setError(err instanceof Error ? err.message : 'Authentication failed');

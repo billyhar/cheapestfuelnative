@@ -9,6 +9,7 @@ import { Profile } from '../types/profile';
 import * as ImagePicker from 'expo-image-picker';
 import { decode } from 'base64-arraybuffer';
 import * as Linking from 'expo-linking';
+import { EMAIL_APPS } from '../constants/EmailApps';
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<User | null>(null);
@@ -93,7 +94,29 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       });
 
       if (error) throw error;
-      Alert.alert('Success', 'Please check your email for the login link.');
+
+      Alert.alert(
+        'Check your email',
+        'We sent you a magic link to sign in',
+        [
+          ...EMAIL_APPS.map(app => ({
+            text: app.name,
+            style: 'default' as const,
+            onPress: async () => {
+              const canOpen = await Linking.canOpenURL(app.scheme);
+              if (canOpen) {
+                await Linking.openURL(app.scheme);
+              } else if ('fallbackUrl' in app && app.fallbackUrl) {
+                await Linking.openURL(app.fallbackUrl);
+              }
+            },
+          })),
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
     } catch (error) {
       console.error('Sign in error:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'An error occurred');

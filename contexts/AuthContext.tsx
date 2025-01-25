@@ -14,6 +14,7 @@ interface AuthContextType {
   updateProfile: (data: Partial<Profile>) => Promise<void>;
   pickImage: () => Promise<string | null>;
   uploadAvatar: (uri: string) => Promise<string | null>;
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

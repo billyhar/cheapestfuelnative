@@ -16,7 +16,6 @@ export default function AuthScreen() {
     setIsLoading(true);
     try {
       await signIn(email);
-      Alert.alert('Check your email', 'We sent you a magic link to sign in');
     } finally {
       setIsLoading(false);
     }
