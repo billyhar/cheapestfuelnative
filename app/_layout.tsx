@@ -1,12 +1,11 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { AuthProvider } from '../contexts/AuthProvider';
+import { useAuth } from '../contexts/AuthContext';
 import 'react-native-reanimated';
-
 import { useColorScheme } from '@/components/useColorScheme';
-import { AppTheme } from '../constants/BrandAssets';
 
 import "../global.css";
 
@@ -17,16 +16,32 @@ export {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-function RootLayoutNav() {
+const RootLayoutNav = () => {
   const { user, loading } = useAuth();
   const colorScheme = useColorScheme();
+  const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
-    console.log('Auth State:', { user, loading });
     if (!loading) {
       SplashScreen.hideAsync();
     }
-  }, [user, loading]);
+  }, [loading]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === 'auth';
+    console.log('Auth state:', { user: !!user, inAuthGroup, segments });
+
+    if (user && inAuthGroup) {
+      // Redirect to tabs if user is signed in and in auth group
+      router.replace('/(tabs)');
+    } else if (!user && !inAuthGroup) {
+      // Redirect to auth if user is not signed in and not in auth group
+      router.replace('/auth');
+    }
+  }, [user, loading, segments]);
 
   if (loading) {
     return null;
@@ -35,34 +50,39 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
-        {user === null ? (
-          <Stack.Screen 
-            name="auth" 
-            options={{ 
-              headerShown: false,
-              animation: 'none',
-              title: 'Sign In'
-            }} 
-          />
-        ) : (
-          <Stack.Screen 
-            name="(tabs)" 
-            options={{ 
-              headerShown: false,
-              animation: 'none',
-              title: 'CheapestFuel'
-            }} 
-          />
-        )}
+        <Stack.Screen 
+          name="auth" 
+          options={{ 
+            headerShown: false,
+            animation: 'none'
+          }} 
+        />
+        <Stack.Screen 
+          name="auth/callback" 
+          options={{ 
+            headerShown: false,
+            animation: 'none'
+          }} 
+        />
+        <Stack.Screen 
+          name="(tabs)" 
+          options={{ 
+            headerShown: false,
+            animation: 'none'
+          }} 
+        />
       </Stack>
     </ThemeProvider>
   );
-}
+};
 
-export default function RootLayout() {
+const RootLayout = () => {
   return (
     <AuthProvider>
       <RootLayoutNav />
     </AuthProvider>
   );
-}
+};
+
+RootLayout.displayName = 'RootLayout';
+export default RootLayout;

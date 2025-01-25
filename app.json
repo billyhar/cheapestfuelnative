@@ -25,7 +25,8 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "cheapestfuel"
+              "cheapestfuel",
+              "com.billyhar.cheapest-fuel-native"
             ]
           }
         ],
@@ -67,6 +68,12 @@
           "mapboxPublicKey": "pk.eyJ1IjoiY2hvbmthbW9ua2EiLCJhIjoiY201OXM3ZHI3MDRhaTJqczZwNGdqcjUyMCJ9.5s5gHVZdgIyswhtkFYbevQ",
           "RNMapboxMapsImpl": "mapbox",
           "RNMapboxMapsDownloadToken": "pk.eyJ1IjoiY2hvbmthbW9ua2EiLCJhIjoiY201OXM3ZHI3MDRhaTJqczZwNGdqcjUyMCJ9.5s5gHVZdgIyswhtkFYbevQ"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to let you pick an avatar."
         }
       ]
     ],
