@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AuthContext } from './AuthContext';
+import { AuthContext, AuthContextType } from './AuthContext';
 import { supabase } from '../lib/supabase';
 import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,6 +11,7 @@ import { decode } from 'base64-arraybuffer';
 import * as Linking from 'expo-linking';
 import { EMAIL_APPS } from '../constants/EmailApps';
 import { useRouter } from '../hooks/useRouter';
+import { usePathname } from 'expo-router';
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<User | null>(null);
@@ -18,14 +19,79 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [isProfileSetupMode, setIsProfileSetupMode] = useState(false);
+  const pathname = usePathname();
   const router = useRouter();
+
+  const checkAndSetProfileSetupMode = async (profileData: Profile | null) => {
+    console.log('Checking profile setup mode:', {
+      hasProfile: !!profileData,
+      handle: profileData?.handle,
+      avatar_url: profileData?.avatar_url
+    });
+
+    if (!profileData || !profileData.handle || !profileData.avatar_url) {
+      console.log('Profile incomplete - enabling setup mode');
+      setIsProfileSetupMode(true);
+      await AsyncStorage.setItem('isProfileSetupMode', 'true');
+      return true;
+    } else {
+      console.log('Profile complete - disabling setup mode');
+      setIsProfileSetupMode(false);
+      await AsyncStorage.removeItem('isProfileSetupMode');
+      return false;
+    }
+  };
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        console.log('Initializing auth...');
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user ?? null);
+        
+        // Load persisted states first
+        const [storedIsNewUser, storedIsProfileSetupMode] = await Promise.all([
+          AsyncStorage.getItem('isNewUser'),
+          AsyncStorage.getItem('isProfileSetupMode')
+        ]);
+
+        console.log('Stored states:', { storedIsNewUser, storedIsProfileSetupMode });
+        
+        if (storedIsNewUser === 'true') {
+          setIsNewUser(true);
+        }
+        if (storedIsProfileSetupMode === 'true') {
+          setIsProfileSetupMode(true);
+        }
+        
+        if (session?.user) {
+          console.log('User session found, fetching profile...');
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profileError) {
+            if (profileError.code === 'PGRST116') {
+              console.log('No profile found - setting up new user');
+              setIsNewUser(true);
+              setIsProfileSetupMode(true);
+              await Promise.all([
+                AsyncStorage.setItem('isNewUser', 'true'),
+                AsyncStorage.setItem('isProfileSetupMode', 'true')
+              ]);
+            } else {
+              console.error('Error fetching profile:', profileError);
+            }
+          } else if (profileData) {
+            setProfile(profileData);
+            await checkAndSetProfileSetupMode(profileData);
+          }
+        }
+        
         setIsLoading(false);
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -36,7 +102,12 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
+      console.log('Auth state changed:', event, {
+        userId: session?.user?.id,
+        isNewUser,
+        isProfileSetupMode
+      });
+      
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -51,36 +122,50 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
           if (profileError) {
             console.error('Error fetching profile:', profileError);
             if (profileError.code === 'PGRST116') {
-              // No profile found, create one
+              console.log('No profile found - starting profile setup');
               setIsNewUser(true);
-              const { error: insertError } = await supabase
-                .from('profiles')
-                .insert([{ id: session.user.id }]);
+              setIsProfileSetupMode(true);
+              await Promise.all([
+                AsyncStorage.setItem('isNewUser', 'true'),
+                AsyncStorage.setItem('isProfileSetupMode', 'true')
+              ]);
               
-              if (insertError) {
-                console.error('Error creating profile:', insertError);
-                throw insertError;
+              if (!pathname?.includes('/auth/handle')) {
+                console.log('Redirecting to handle setup (new user)');
+                router.replace('/auth/handle');
               }
             } else {
               throw profileError;
             }
           } else if (profileData) {
             setProfile(profileData);
-            setIsNewUser(false);
+            const needsSetup = await checkAndSetProfileSetupMode(profileData);
+            
+            if (needsSetup && !pathname?.includes('/auth/handle')) {
+              console.log('Redirecting to handle setup (incomplete profile)');
+              router.replace('/auth/handle');
+            }
           }
         } catch (error) {
           console.error('Error in auth state change:', error);
-          // Don't throw here - we want to keep the session even if profile fetch fails
-          setProfile(null);
         }
       } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out - clearing states');
         setProfile(null);
         setIsNewUser(false);
+        setIsProfileSetupMode(false);
+        await Promise.all([
+          AsyncStorage.removeItem('isNewUser'),
+          AsyncStorage.removeItem('isProfileSetupMode'),
+          AsyncStorage.removeItem('profile')
+        ]);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [pathname]);
 
   const signIn = async (email: string): Promise<void> => {
     try {
@@ -142,7 +227,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         'supabase.auth.token',
         'isNewUser',
         'user',
-        'profile'
+        'profile',
+        'isProfileSetupMode'
       ]);
 
       // Sign out from Supabase
@@ -159,6 +245,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       setSession(null);
       setProfile(null);
       setIsNewUser(false);
+      setIsProfileSetupMode(false);
 
       // Navigation will be handled by the root layout's auth state change effect
     } catch (error) {
@@ -255,22 +342,59 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
+  const refreshUser = async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+          setProfile(null);
+        } else {
+          setProfile(profileData);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startProfileSetup = async () => {
+    setIsProfileSetupMode(true);
+    await AsyncStorage.setItem('isProfileSetupMode', 'true');
+    router.push('/auth/handle');
+  };
+
+  const value: AuthContextType = {
+    user,
+    session,
+    profile,
+    isLoading,
+    isNewUser,
+    isProfileSetupMode,
+    signIn,
+    signOut,
+    updateProfile,
+    uploadAvatar,
+    startProfileSetup,
+    setIsNewUser,
+    pickImage,
+    refreshUser,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        profile,
-        loading: isLoading,
-        isNewUser,
-        setIsNewUser,
-        signIn,
-        signOut,
-        updateProfile,
-        pickImage,
-        uploadAvatar,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

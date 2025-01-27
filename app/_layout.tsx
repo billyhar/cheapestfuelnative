@@ -17,63 +17,110 @@ export {
 SplashScreen.preventAutoHideAsync();
 
 const RootLayoutNav = () => {
-  const { user, loading } = useAuth();
+  const { user, isLoading, isProfileSetupMode, profile } = useAuth();
   const colorScheme = useColorScheme();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
+    if (!isLoading) {
       SplashScreen.hideAsync();
     }
-  }, [loading]);
+  }, [isLoading]);
 
   useEffect(() => {
-    if (loading) return;
+    if (isLoading) return;
 
     const inAuthGroup = segments[0] === 'auth';
-    console.log('Auth state:', { user: !!user, inAuthGroup, segments });
+    const hasRequiredProfileFields = profile?.handle && profile?.avatar_url;
+    
+    console.log('Navigation state:', { 
+      user: !!user, 
+      inAuthGroup, 
+      segments, 
+      isProfileSetupMode,
+      hasProfile: !!profile,
+      hasRequiredProfileFields,
+      currentPath: segments.join('/')
+    });
 
-    if (!loading) {
+    if (!isLoading) {
       // Use setTimeout to ensure navigation happens after layout is complete
       setTimeout(() => {
-        if (user && inAuthGroup) {
-          // Redirect to tabs if user is signed in and in auth group
-          router.replace('/(tabs)');
-        } else if (!user && !inAuthGroup) {
-          // Redirect to auth if user is not signed in and not in auth group
+        // If no user, redirect to auth
+        if (!user && !inAuthGroup) {
+          console.log('Redirecting to /auth: No user and not in auth group');
           router.replace('/auth');
+          return;
+        }
+
+        // If user exists but no profile or missing required fields, force profile setup
+        if (user && !hasRequiredProfileFields && !inAuthGroup) {
+          console.log('Redirecting to /auth/handle: Missing required profile fields');
+          router.replace('/auth/handle');
+          return;
+        }
+
+        // If user exists, has profile, is in auth group, and not in setup mode, redirect to tabs
+        if (user && hasRequiredProfileFields && inAuthGroup && !isProfileSetupMode) {
+          console.log('Redirecting to /(tabs): User has complete profile');
+          router.replace('/(tabs)');
+          return;
         }
       }, 0);
     }
-  }, [user, loading, segments]);
+  }, [user, isLoading, segments, isProfileSetupMode, profile]);
 
-  if (loading) {
+  if (isLoading) {
     return null;
   }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack 
+        screenOptions={{ 
+          headerShown: false,
+          gestureEnabled: false // Disable swipe back gesture
+        }}
+      >
         <Stack.Screen 
           name="auth" 
           options={{ 
             headerShown: false,
-            animation: 'none'
+            animation: 'none',
+            gestureEnabled: false
           }} 
         />
         <Stack.Screen 
           name="auth/callback" 
           options={{ 
             headerShown: false,
-            animation: 'none'
+            animation: 'none',
+            gestureEnabled: false
+          }} 
+        />
+        <Stack.Screen 
+          name="auth/handle" 
+          options={{ 
+            headerShown: false,
+            animation: 'none',
+            gestureEnabled: false
+          }} 
+        />
+        <Stack.Screen 
+          name="auth/profile-picture" 
+          options={{ 
+            headerShown: false,
+            animation: 'none',
+            gestureEnabled: false
           }} 
         />
         <Stack.Screen 
           name="(tabs)" 
           options={{ 
             headerShown: false,
-            animation: 'none'
+            animation: 'none',
+            gestureEnabled: false
           }} 
         />
       </Stack>

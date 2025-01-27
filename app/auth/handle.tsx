@@ -1,92 +1,206 @@
-import { View, Text, TextInput } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { useState, useEffect } from 'react';
-import { Button } from '../../components/Button';
-import { supabase } from '../../lib/supabase';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { PostgrestError } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function HandleSetup() {
-  const [handle, setHandle] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+export default function HandleScreen() {
+  const [handle, setHandle] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const { user, profile, isNewUser, isProfileSetupMode } = useAuth();
 
   useEffect(() => {
-    const checkNewUser = async () => {
-      const isNewUser = await AsyncStorage.getItem('isNewUser');
-      if (!isNewUser) {
-        // If not a new user, redirect to tabs
-        router.replace('/(tabs)');
-      }
-    };
-    
-    checkNewUser();
-  }, []);
+    console.log('[HandleScreen] Mounted with state:', {
+      handle,
+      isLoading,
+      hasProfile: !!profile,
+      isNewUser,
+      isProfileSetupMode,
+      userId: user?.id
+    });
 
-  const handleSubmit = async () => {
-    if (!handle.trim()) {
-      setError('Handle is required');
-      return;
+    if (profile?.handle) {
+      setHandle(profile.handle);
     }
 
-    setLoading(true);
-    setError('');
+    return () => {
+      console.log('[HandleScreen] Unmounting');
+    };
+  }, []);
 
+  useEffect(() => {
+    console.log('[HandleScreen] Profile or setup mode changed:', {
+      hasProfile: !!profile,
+      isProfileSetupMode,
+      handle: profile?.handle
+    });
+  }, [profile, isProfileSetupMode]);
+
+  useEffect(() => {
+    console.log('[HandleScreen] Handle changed:', handle);
+  }, [handle]);
+
+  useEffect(() => {
+    console.log('[HandleScreen] Error changed:', error);
+  }, [error]);
+
+  useEffect(() => {
+    console.log('[HandleScreen] Is loading changed:', isLoading);
+  }, [isLoading]);
+
+  const validateHandle = async (handle: string): Promise<string> => {
+    if (handle.length < 3) {
+      return 'Handle must be at least 3 characters';
+    }
+    if (handle.length > 15) {
+      return 'Handle must be less than 15 characters';
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(handle)) {
+      return 'Handle can only contain letters, numbers, and underscores';
+    }
+
+    // Check if handle is already taken
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('handle', handle)
+      .neq('id', user?.id ?? '')
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      return 'Error checking handle availability';
+    }
+
+    if (data) {
+      return 'Handle is already taken';
+    }
+
+    return '';
+  };
+
+  const handleSubmit = async (): Promise<void> => {
     try {
+      console.log('[HandleScreen] Submitting handle:', {
+        handle,
+        userId: user?.id,
+        isNewUser,
+        isProfileSetupMode
+      });
+      
+      setIsLoading(true);
+      setError('');
+
+      const validationError = await validateHandle(handle);
+      if (validationError) {
+        console.log('[HandleScreen] Validation error:', validationError);
+        setError(validationError);
+        return;
+      }
+
       const { error: updateError } = await supabase
         .from('profiles')
         .upsert({
           id: user?.id,
-          handle: handle.trim(),
+          handle,
           updated_at: new Date().toISOString(),
         });
 
       if (updateError) throw updateError;
 
-      await refreshUser();
-      router.push('/auth/profile-picture');
-    } catch (err: any) {
-      setError(err.message);
+      console.log('[HandleScreen] Handle updated successfully, navigating to profile picture');
+      if (isNewUser || isProfileSetupMode) {
+        router.replace('/auth/profile-picture');
+      } else {
+        // If not in setup mode, clear states and go to tabs
+        await AsyncStorage.removeItem('isProfileSetupMode');
+        router.replace('/(tabs)');
+      }
+    } catch (error) {
+      const pgError = error as PostgrestError;
+      setError(pgError.message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <View className="flex-1 bg-white p-4">
-      <View className="flex-1 justify-center">
-        <Text className="text-2xl font-bold text-center mb-8">
-          Choose Your Handle
+    <View style={styles.container}>
+      <Text style={styles.title}>Choose your handle</Text>
+      <Text style={styles.subtitle}>
+        This is your unique identifier that others will use to find you
+      </Text>
+
+      <TextInput
+        style={styles.input}
+        value={handle}
+        onChangeText={setHandle}
+        placeholder="Enter your handle"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <TouchableOpacity
+        style={[styles.button, isLoading && styles.buttonDisabled]}
+        onPress={handleSubmit}
+        disabled={isLoading}
+      >
+        <Text style={styles.buttonText}>
+          {isLoading ? 'Saving...' : 'Continue'}
         </Text>
-        <Text className="text-gray-600 text-center mb-8">
-          This is how other users will identify you. Choose something unique!
-        </Text>
-        
-        <View className="space-y-4">
-          <TextInput
-            className="bg-gray-100 p-4 rounded-lg"
-            placeholder="Enter your handle (e.g. john123)"
-            value={handle}
-            onChangeText={setHandle}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={30}
-          />
-          
-          {error ? (
-            <Text className="text-red-500 text-center">{error}</Text>
-          ) : null}
-          
-          <Button
-            onPress={handleSubmit}
-            loading={loading}
-          >
-            Continue to Profile Picture
-          </Button>
-        </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 20,
+    fontSize: 16,
+  },
+  error: {
+    color: 'red',
+    marginBottom: 20,
+  },
+  button: {
+    backgroundColor: '#000',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});

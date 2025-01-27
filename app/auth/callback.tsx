@@ -89,6 +89,7 @@ export default function AuthCallback() {
           .eq('id', session.user.id)
           .single();
 
+        // If profile error and it's not just "no rows returned"
         if (profileError && profileError.code !== 'PGRST116') {
           console.error('Profile fetch error:', profileError);
           throw profileError;
@@ -103,11 +104,45 @@ export default function AuthCallback() {
         // If this is a new user (no profile or no handle)
         if (!profile || !profile.handle) {
           console.log('New user detected, redirecting to handle setup');
-          await AsyncStorage.setItem('isNewUser', 'true');
+          // Clear any existing profile data
+          if (profile && !profile.handle) {
+            // Delete the incomplete profile
+            await supabase
+              .from('profiles')
+              .delete()
+              .eq('id', session.user.id);
+          }
+          
+          // Set both flags for new user setup
+          await Promise.all([
+            AsyncStorage.setItem('isNewUser', 'true'),
+            AsyncStorage.setItem('isProfileSetupMode', 'true'),
+            AsyncStorage.removeItem('profile') // Clear any cached profile
+          ]);
+
+          console.log('Setup flags set:', {
+            isNewUser: true,
+            isProfileSetupMode: true
+          });
+          
+          // Add a small delay to ensure AsyncStorage is updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Force navigation to handle setup
           router.replace('/auth/handle');
         } else {
           console.log('Existing user detected, redirecting to main app');
-          await AsyncStorage.removeItem('isNewUser');
+          // Clear both flags for existing user
+          await Promise.all([
+            AsyncStorage.removeItem('isNewUser'),
+            AsyncStorage.removeItem('isProfileSetupMode'),
+          ]);
+
+          console.log('Setup flags cleared for existing user');
+          
+          // Add a small delay to ensure AsyncStorage is updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           router.replace('/(tabs)');
         }
       } catch (err) {

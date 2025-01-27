@@ -2,22 +2,39 @@ import { createContext, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { Profile } from '../types/profile';
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
-  loading: boolean;
+  isLoading: boolean;
   isNewUser: boolean;
+  isProfileSetupMode: boolean;
   setIsNewUser: (value: boolean) => void;
   signIn: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (data: Partial<Profile>) => Promise<void>;
-  pickImage: () => Promise<string | null>;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
   uploadAvatar: (uri: string) => Promise<string | null>;
+  startProfileSetup: () => Promise<void>;
+  pickImage: () => Promise<string | null>;
   refreshUser: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType>({
+  user: null,
+  session: null,
+  profile: null,
+  isLoading: true,
+  isNewUser: false,
+  isProfileSetupMode: false,
+  setIsNewUser: () => {},
+  signIn: async () => {},
+  signOut: async () => {},
+  updateProfile: async () => {},
+  uploadAvatar: async () => null,
+  startProfileSetup: async () => {},
+  pickImage: async () => null,
+  refreshUser: async () => {},
+});
 
 export function useAuth() {
   const context = useContext(AuthContext);
