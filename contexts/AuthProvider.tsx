@@ -30,17 +30,26 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       avatar_url: profileData?.avatar_url
     });
 
+    // Always set setup mode if profile is incomplete
     if (!profileData || !profileData.handle || !profileData.avatar_url) {
       console.log('Profile incomplete - enabling setup mode');
       setIsProfileSetupMode(true);
       await AsyncStorage.setItem('isProfileSetupMode', 'true');
       return true;
-    } else {
+    }
+
+    // Only disable setup mode if we have a complete profile
+    const storedIsProfileSetupMode = await AsyncStorage.getItem('isProfileSetupMode');
+    if (storedIsProfileSetupMode !== 'true') {
       console.log('Profile complete - disabling setup mode');
       setIsProfileSetupMode(false);
       await AsyncStorage.removeItem('isProfileSetupMode');
-      return false;
+    } else {
+      console.log('Keeping setup mode enabled due to stored state');
+      setIsProfileSetupMode(true);
     }
+    
+    return storedIsProfileSetupMode === 'true';
   };
 
   useEffect(() => {

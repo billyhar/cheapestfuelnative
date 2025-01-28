@@ -84,6 +84,12 @@ export default function HandleScreen() {
 
   const handleSubmit = async (): Promise<void> => {
     try {
+      if (!user?.id) {
+        console.error('[HandleScreen] No user ID found');
+        setError('User not found. Please try logging in again.');
+        return;
+      }
+
       console.log('[HandleScreen] Submitting handle:', {
         handle,
         userId: user?.id,
@@ -94,34 +100,44 @@ export default function HandleScreen() {
       setIsLoading(true);
       setError('');
 
+      // Force profile setup mode for new users
+      if (isNewUser) {
+        console.log('[HandleScreen] Setting profile setup mode for new user');
+        await AsyncStorage.setItem('isProfileSetupMode', 'true');
+      }
+
       const validationError = await validateHandle(handle);
       if (validationError) {
         console.log('[HandleScreen] Validation error:', validationError);
         setError(validationError);
+        setIsLoading(false);
         return;
       }
 
-      const { error: updateError } = await supabase
+      console.log('[HandleScreen] Creating/updating profile...');
+      const { data: profile, error: updateError } = await supabase
         .from('profiles')
         .upsert({
-          id: user?.id,
+          id: user.id,
           handle,
           updated_at: new Date().toISOString(),
-        });
+        })
+        .select()
+        .single();
 
-      if (updateError) throw updateError;
-
-      console.log('[HandleScreen] Handle updated successfully, navigating to profile picture');
-      if (isNewUser || isProfileSetupMode) {
-        router.replace('/auth/profile-picture');
-      } else {
-        // If not in setup mode, clear states and go to tabs
-        await AsyncStorage.removeItem('isProfileSetupMode');
-        router.replace('/(tabs)');
+      if (updateError) {
+        console.error('[HandleScreen] Profile update error:', updateError);
+        throw updateError;
       }
+
+      console.log('[HandleScreen] Profile updated:', profile);
+
+      // Always proceed to profile picture for new profiles
+      console.log('[HandleScreen] Navigating to profile picture setup');
+      router.replace('/auth/profile-picture');
     } catch (error) {
-      const pgError = error as PostgrestError;
-      setError(pgError.message);
+      console.error('[HandleScreen] Submit error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save handle');
     } finally {
       setIsLoading(false);
     }
