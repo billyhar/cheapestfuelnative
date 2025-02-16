@@ -29,7 +29,13 @@ export default function AuthCallback() {
         timeoutId = setTimeout(() => {
           if (isMounted) {
             console.log('Session exchange timeout - redirecting to handle setup');
-            router.replace('/auth/handle');
+            // Ensure profile setup mode is set before timeout redirect
+            Promise.all([
+              AsyncStorage.setItem('isProfileSetupMode', 'true'),
+              AsyncStorage.removeItem('profile')
+            ]).then(() => {
+              router.replace('/auth/handle');
+            });
           }
         }, 5000); // 5 second timeout
 
@@ -53,7 +59,7 @@ export default function AuthCallback() {
             throw new Error('No authentication code in URL');
           }
           
-          setStatus('Exchanging code for session...');
+          setStatus('Hang tight...');
           console.log('Attempting to exchange deep link code for session...');
           const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(
             parsedURL.queryParams.code as string
@@ -71,7 +77,7 @@ export default function AuthCallback() {
           session = data.session;
           console.log('Session established via deep link:', { userId: session.user.id });
         } else {
-          setStatus('Exchanging code for session...');
+          setStatus('Hang tight...');
           console.log('Attempting to exchange params code for session:', code);
           
           try {
@@ -152,6 +158,7 @@ export default function AuthCallback() {
           if (isMounted) {
             router.replace('/auth/handle');
           }
+          return;
         } else {
           console.log('Existing user detected, redirecting to main app');
           // Clear both flags for existing user

@@ -14,18 +14,28 @@ export default function HandleScreen() {
   const { user, profile, isNewUser, isProfileSetupMode } = useAuth();
 
   useEffect(() => {
-    console.log('[HandleScreen] Mounted with state:', {
-      handle,
-      isLoading,
-      hasProfile: !!profile,
-      isNewUser,
-      isProfileSetupMode,
-      userId: user?.id
-    });
+    const initializeScreen = async () => {
+      console.log('[HandleScreen] Mounted with state:', {
+        handle,
+        isLoading,
+        hasProfile: !!profile,
+        isNewUser,
+        isProfileSetupMode,
+        userId: user?.id
+      });
 
-    if (profile?.handle) {
-      setHandle(profile.handle);
-    }
+      // If we don't have a profile or handle, ensure we're in setup mode
+      if (!profile?.handle) {
+        console.log('[HandleScreen] No profile/handle found - ensuring setup mode');
+        await AsyncStorage.setItem('isProfileSetupMode', 'true');
+      }
+
+      if (profile?.handle) {
+        setHandle(profile.handle);
+      }
+    };
+
+    initializeScreen();
 
     return () => {
       console.log('[HandleScreen] Unmounting');
@@ -52,92 +62,81 @@ export default function HandleScreen() {
     console.log('[HandleScreen] Is loading changed:', isLoading);
   }, [isLoading]);
 
-  const validateHandle = async (handle: string): Promise<string> => {
-    if (handle.length < 3) {
-      return 'Handle must be at least 3 characters';
+  useEffect(() => {
+    if (profile?.handle && isProfileSetupMode) {
+      console.log('[HandleScreen] Profile has handle and in setup mode - navigating to profile picture');
+      router.replace('/auth/profile-picture');
     }
-    if (handle.length > 15) {
-      return 'Handle must be less than 15 characters';
-    }
-    if (!/^[a-zA-Z0-9_]+$/.test(handle)) {
-      return 'Handle can only contain letters, numbers, and underscores';
-    }
+  }, [profile?.handle, isProfileSetupMode]);
 
-    // Check if handle is already taken
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('handle', handle)
-      .neq('id', user?.id ?? '')
-      .single();
+  const validateHandle = async (handle: string): Promise<string | null> => {
+    if (!handle) return 'Username is required';
+    if (handle.length < 3) return 'Username must be at least 3 characters';
+    if (!/^[a-zA-Z0-9_]+$/.test(handle)) return 'Only letters, numbers and underscores allowed';
 
-    if (error && error.code !== 'PGRST116') {
-      return 'Error checking handle availability';
+    // Check handle availability
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('handle', handle)
+        .neq('id', user?.id)
+        .single();
+
+      if (data) return 'Username is already taken';
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      return null;
+    } catch (error) {
+      console.error('Handle validation error:', error);
+      return 'Error checking username availability';
     }
-
-    if (data) {
-      return 'Handle is already taken';
-    }
-
-    return '';
   };
 
   const handleSubmit = async (): Promise<void> => {
     try {
+      console.log('[HandleScreen] Starting handle submission');
+      
       if (!user?.id) {
         console.error('[HandleScreen] No user ID found');
         setError('User not found. Please try logging in again.');
         return;
       }
 
-      console.log('[HandleScreen] Submitting handle:', {
-        handle,
-        userId: user?.id,
-        isNewUser,
-        isProfileSetupMode
-      });
-      
       setIsLoading(true);
       setError('');
 
-      // Force profile setup mode for new users
-      if (isNewUser) {
-        console.log('[HandleScreen] Setting profile setup mode for new user');
-        await AsyncStorage.setItem('isProfileSetupMode', 'true');
-      }
-
+      // Add validation with better error messages
       const validationError = await validateHandle(handle);
       if (validationError) {
-        console.log('[HandleScreen] Validation error:', validationError);
+        console.log('[HandleScreen] Validation failed:', validationError);
         setError(validationError);
         setIsLoading(false);
         return;
       }
 
-      console.log('[HandleScreen] Creating/updating profile...');
-      const { data: profile, error: updateError } = await supabase
+      console.log('[HandleScreen] Upserting profile...');
+      const { error: updateError } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           handle,
           updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+        });
 
       if (updateError) {
-        console.error('[HandleScreen] Profile update error:', updateError);
-        throw updateError;
+        console.error('[HandleScreen] Profile update failed:', updateError);
+        throw new Error(updateError.message || 'Failed to save handle');
       }
 
-      console.log('[HandleScreen] Profile updated:', profile);
-
-      // Always proceed to profile picture for new profiles
-      console.log('[HandleScreen] Navigating to profile picture setup');
+      console.log('[HandleScreen] Profile updated successfully');
       router.replace('/auth/profile-picture');
     } catch (error) {
-      console.error('[HandleScreen] Submit error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to save handle');
+      console.error('[HandleScreen] Submission error:', error);
+      setError(error instanceof Error ? 
+        error.message.replace('handle', 'username') :  // More user-friendly
+        'Failed to save username. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
