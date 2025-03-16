@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link, Tabs } from 'expo-router';
-import { Pressable, Image, View, Text } from 'react-native';
+import { Pressable, Image, View } from 'react-native';
 import { useColorScheme } from 'react-native';
 import { AppTheme } from '../../constants/BrandAssets';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -12,10 +12,10 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#1B75BA',
-        tabBarInactiveTintColor: AppTheme.colors.text,
+        tabBarInactiveTintColor: '#818589',
         tabBarStyle: {
           backgroundColor: AppTheme.colors.card,
-          borderTopColor: AppTheme.colors.border,
+          borderTopColor: '#E5E7EB',
           height: 80,
           paddingBottom: 20,
           paddingTop: 10,
@@ -41,17 +41,18 @@ export default function TabLayout() {
         options={{
           title: 'Map',
           headerTitle: () => (
-            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <View className="items-center justify-center">
               <Image
                 source={require('../../assets/images/CheapestFuel.png')}
-                style={{ height: 30, resizeMode: 'contain' }}
+                className="h-[30px]"
+                resizeMode="contain"
               />
             </View>
           ),
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons 
-              size={28} 
-              name={focused ? "map-marker-radius" : "map-marker-radius-outline"} 
+            <Ionicons 
+              size={24} 
+              name={focused ? "location" : "location-outline"} 
               color={color} 
             />
           ),
@@ -60,12 +61,12 @@ export default function TabLayout() {
       <Tabs.Screen
         name="stats"
         options={{
-          title: 'Statistics',
+          title: 'Stats',
           headerTitle: 'Fuel Stats',
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons 
-              size={28} 
-              name={focused ? "chart-bar" : "chart-bar"} 
+            <Ionicons 
+              size={24} 
+              name={focused ? "bar-chart" : "bar-chart-outline"} 
               color={color} 
             />
           ),
@@ -77,9 +78,9 @@ export default function TabLayout() {
           title: 'Account',
           headerTitle: 'Account',
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons 
-              size={28} 
-              name={focused ? "account-circle" : "account-circle-outline"} 
+            <Ionicons 
+              size={24} 
+              name={focused ? "person-circle" : "person-circle-outline"} 
               color={color} 
             />
           ),

@@ -32,6 +32,13 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
     // Get current state first
     const storedIsProfileSetupMode = await AsyncStorage.getItem('isProfileSetupMode');
+    const currentPath = pathname || '';
+    
+    // If we're already in the handle or profile-picture screens, don't change setup mode
+    if (currentPath.includes('/auth/handle') || currentPath.includes('/auth/profile-picture')) {
+      console.log('Already in profile setup flow, not changing setup mode');
+      return !!storedIsProfileSetupMode;
+    }
     
     // Only set setup mode if profile is incomplete AND we're not already in setup mode
     if (!profileData || !profileData.handle || !profileData.avatar_url) {
@@ -72,9 +79,9 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         if (storedIsNewUser === 'true') {
           setIsNewUser(true);
         }
-        if (storedIsProfileSetupMode === 'true') {
-          setIsProfileSetupMode(true);
-        }
+        
+        // Always set isProfileSetupMode based on AsyncStorage
+        setIsProfileSetupMode(storedIsProfileSetupMode === 'true');
         
         if (session?.user) {
           console.log('User session found, fetching profile...');
@@ -98,10 +105,13 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
             }
           } else if (profileData) {
             setProfile(profileData);
-            await checkAndSetProfileSetupMode(profileData);
+            // Only check profile setup mode if we're not already in the setup flow
+            const currentPath = pathname || '';
+            if (!currentPath.includes('/auth/handle') && !currentPath.includes('/auth/profile-picture')) {
+              await checkAndSetProfileSetupMode(profileData);
+            }
           }
         }
-        
         
         setIsLoading(false);
       } catch (error) {
@@ -116,7 +126,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       console.log('Auth state changed:', event, {
         userId: session?.user?.id,
         isNewUser,
-        isProfileSetupMode
+        isProfileSetupMode,
+        pathname
       });
       
       setSession(session);
@@ -124,6 +135,15 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
       if (event === 'SIGNED_IN' && session) {
         try {
+          // Check if we're already in the profile setup flow
+          const currentPath = pathname || '';
+          const inProfileSetup = currentPath.includes('/auth/handle') || currentPath.includes('/auth/profile-picture');
+          
+          if (inProfileSetup) {
+            console.log('Already in profile setup flow, not redirecting');
+            return;
+          }
+          
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -431,6 +451,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     uploadAvatar,
     startProfileSetup,
     setIsNewUser,
+    setIsProfileSetupMode,
     setProfile,
     pickImage,
     refreshUser,

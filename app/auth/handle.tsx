@@ -11,7 +11,26 @@ export default function HandleScreen() {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
-  const { user, profile, isNewUser, isProfileSetupMode, updateProfile, setProfile } = useAuth();
+  const { 
+    user, 
+    profile, 
+    isNewUser, 
+    isProfileSetupMode, 
+    updateProfile, 
+    setProfile,
+    setIsProfileSetupMode,
+    refreshUser
+  } = useAuth();
+
+  // Debug log
+  console.log('[HandleScreen] Component rendered with:', {
+    userId: user?.id,
+    hasProfile: !!profile,
+    profileId: profile?.id,
+    profileHandle: profile?.handle,
+    isNewUser,
+    isProfileSetupMode
+  });
 
   useEffect(() => {
     const initializeScreen = async () => {
@@ -24,12 +43,11 @@ export default function HandleScreen() {
         userId: user?.id
       });
 
-      // If we don't have a profile or handle, ensure we're in setup mode
-      if (!profile?.handle) {
-        console.log('[HandleScreen] No profile/handle found - ensuring setup mode');
-        await AsyncStorage.setItem('isProfileSetupMode', 'true');
-      }
-
+      // Always ensure we're in setup mode when on this screen
+      console.log('[HandleScreen] Setting profile setup mode to true');
+      await AsyncStorage.setItem('isProfileSetupMode', 'true');
+      setIsProfileSetupMode(true);
+      
       if (profile?.handle) {
         setHandle(profile.handle);
       }
@@ -69,6 +87,25 @@ export default function HandleScreen() {
     }
   }, [profile?.handle, isProfileSetupMode]);
 
+  // Direct navigation function
+  const navigateToProfilePicture = () => {
+    console.log('[HandleScreen] Directly navigating to profile picture screen');
+    try {
+      // Try the router approach
+      router.replace('/auth/profile-picture');
+    } catch (error) {
+      console.error('[HandleScreen] Navigation error:', error);
+      // Try again after a short delay
+      setTimeout(() => {
+        try {
+          router.replace('/auth/profile-picture');
+        } catch (innerError) {
+          console.error('[HandleScreen] Second navigation attempt failed:', innerError);
+        }
+      }, 500);
+    }
+  };
+
   const validateHandle = async (handle: string): Promise<string | null> => {
     if (!handle) return 'Username is required';
     if (handle.length < 3) return 'Username must be at least 3 characters';
@@ -94,18 +131,26 @@ export default function HandleScreen() {
   };
 
   const handleSubmit = async (): Promise<void> => {
-    try {
-      console.log('[HandleScreen] Starting handle submission');
-      
-      if (!user?.id) {
-        console.error('[HandleScreen] No user ID found');
-        setError('User not found. Please try logging in again.');
-        return;
-      }
+    if (!user?.id) {
+      setError('User not found. Please try logging in again.');
+      return;
+    }
 
+    if (!handle.trim()) {
+      setError('Username is required');
+      return;
+    }
+
+    try {
+      // Set loading state
       setIsLoading(true);
       setError('');
+      
+      // Ensure we're in profile setup mode
+      setIsProfileSetupMode(true);
+      await AsyncStorage.setItem('isProfileSetupMode', 'true');
 
+      // Validate handle
       const validationError = await validateHandle(handle);
       if (validationError) {
         setError(validationError);
@@ -113,33 +158,43 @@ export default function HandleScreen() {
         return;
       }
 
-      console.log('[HandleScreen] Upserting profile with handle:', handle);
-      const { data, error: updateError } = await supabase
+      // Update profile in Supabase
+      console.log('[HandleScreen] Updating profile with handle:', handle);
+      const { data, error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           handle: handle.trim(),
           updated_at: new Date().toISOString(),
-        })
+        }, { onConflict: 'id' })
         .select()
         .single();
 
-      if (updateError) throw updateError;
-
-      console.log('[HandleScreen] Profile updated successfully with handle:', handle);
-      
-      if (data) {
-        setProfile(data);
+      if (error) {
+        console.error('[HandleScreen] Database error:', error);
+        throw error;
       }
+
+      if (!data) {
+        throw new Error('No data returned from profile update');
+      }
+
+      // Update local state
+      console.log('[HandleScreen] Profile updated successfully:', data);
+      setProfile(data);
       
+      // Clear loading state before navigation
+      setIsLoading(false);
+      
+      // Navigate to profile picture screen
+      console.log('[HandleScreen] Navigating to profile picture screen');
       router.replace('/auth/profile-picture');
     } catch (error) {
-      console.error('[HandleScreen] Error updating profile:', error);
+      console.error('[HandleScreen] Error:', error);
       setError(error instanceof Error ? 
         error.message.replace('handle', 'username') :
         'Failed to save username. Please try again.'
       );
-    } finally {
       setIsLoading(false);
     }
   };
@@ -164,7 +219,11 @@ export default function HandleScreen() {
 
       <TouchableOpacity
         style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={handleSubmit}
+        onPress={() => {
+          if (isLoading) return; // Prevent multiple clicks
+          console.log('[HandleScreen] Continue button pressed');
+          handleSubmit();
+        }}
         disabled={isLoading}
       >
         <Text style={styles.buttonText}>

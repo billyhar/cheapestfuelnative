@@ -128,7 +128,10 @@ export default function ProfilePictureScreen() {
           upsert: true,
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('[ProfilePictureScreen] Storage upload error:', uploadError);
+        throw uploadError;
+      }
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
@@ -137,35 +140,36 @@ export default function ProfilePictureScreen() {
 
       console.log('[ProfilePictureScreen] Image uploaded, public URL:', publicUrl);
 
-      // Direct Supabase upsert instead of using updateProfile
+      // Simplified upsert operation
       const { data, error: updateError } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           avatar_url: publicUrl,
           updated_at: new Date().toISOString(),
-        })
+        }, { onConflict: 'id' })
         .select()
         .single();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('[ProfilePictureScreen] Profile update error:', updateError);
+        throw updateError;
+      }
 
       console.log('[ProfilePictureScreen] Profile updated with avatar URL');
       
-      // Manually update the profile state
+      // Update local state
       if (data) {
         setProfile(data);
       }
       
-      // Clear profile setup mode and redirect to main app
+      // Clear profile setup mode
       await AsyncStorage.removeItem('isProfileSetupMode');
       await AsyncStorage.removeItem('isNewUser');
       console.log('[ProfilePictureScreen] Profile setup complete, redirecting to main app');
       
-      // Force a small delay to ensure state updates before navigation
-      setTimeout(() => {
-        router.replace('/(tabs)');
-      }, 500);
+      // Navigate to main app
+      router.replace('/(tabs)');
     } catch (error) {
       console.error('[ProfilePictureScreen] Error:', error);
       if (error instanceof StorageError) {
@@ -206,7 +210,10 @@ export default function ProfilePictureScreen() {
 
       <TouchableOpacity
         style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={uploadImage}
+        onPress={() => {
+          console.log('[ProfilePictureScreen] Continue button pressed');
+          uploadImage();
+        }}
         disabled={isLoading}
       >
         <Text style={styles.buttonText}>

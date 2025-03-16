@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function AccountScreen() {
   const { signOut, user, profile, isProfileSetupMode } = useAuth();
@@ -33,7 +34,7 @@ export default function AccountScreen() {
     return avatarUrlWithCacheBust;
   };
 
-  const navigateToEdit = () => {
+  const navigateToEdit = (section?: string) => {
     router.push('/auth/edit-profile');
   };
 
@@ -48,7 +49,7 @@ export default function AccountScreen() {
           >
             {getAvatarUrl() ? (
               <Image
-                source={{ uri: getAvatarUrl() }}
+                source={{ uri: getAvatarUrl() || undefined }}
                 className="w-24 h-24 rounded-full border-4 border-white"
                 onError={(error) => console.log("Image loading error:", error.nativeEvent)}
               />
@@ -67,6 +68,19 @@ export default function AccountScreen() {
 
       {/* Settings Section */}
       <View className="p-5 space-y-4">
+        <TouchableOpacity
+          onPress={() => navigateToEdit()}
+          className="flex-row items-center justify-between bg-white p-4 mb-4 rounded-xl border border-gray-200"
+        >
+          <View className="flex-row items-center">
+            <Ionicons name="person-outline" size={24} color="#1B75BA" />
+            <Text className="ml-3 font-medium text-gray-900">
+              Edit Profile
+            </Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#1B75BA" />
+        </TouchableOpacity>
+
         <TouchableOpacity
           onPress={handleLogout}
           disabled={isLoggingOut}
