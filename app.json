@@ -2,10 +2,10 @@
   "expo": {
     "name": "cheapest-fuel-native",
     "slug": "cheapest-fuel-native",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "cheapestfuel",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -21,7 +21,15 @@
       },
       "appleTeamId": "RXC4M6A76Q",
       "infoPlist": {
-        "UIViewControllerBasedStatusBarAppearance": true,
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "cheapestfuel",
+              "com.billyhar.cheapest-fuel-native"
+            ]
+          }
+        ],
         "NSLocationWhenInUseUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area.",
         "NSLocationAlwaysUsageDescription": "We need your location to show nearby fuel stations and help you find the cheapest fuel prices in your area."
@@ -33,6 +41,18 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.creativebillyy.cheapestfuelnative",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "cheapestfuel"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {
@@ -49,7 +69,14 @@
           "RNMapboxMapsImpl": "mapbox",
           "RNMapboxMapsDownloadToken": "pk.eyJ1IjoiY2hvbmthbW9ua2EiLCJhIjoiY201OXM3ZHI3MDRhaTJqczZwNGdqcjUyMCJ9.5s5gHVZdgIyswhtkFYbevQ"
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to let you pick an avatar."
+        }
+      ],
+      "expo-linking"
     ],
     "experiments": {
       "typedRoutes": true

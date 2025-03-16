@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "default-fuel-logo.png.png",
+      "filename" : "SplashLogo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "default-fuel-logo.png 1.png",
+      "filename" : "SplashLogo 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "default-fuel-logo.png 2.png",
+      "filename" : "SplashLogo 2.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
