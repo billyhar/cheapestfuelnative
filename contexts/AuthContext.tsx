@@ -10,6 +10,7 @@ export interface AuthContextType {
   isNewUser: boolean;
   isProfileSetupMode: boolean;
   setIsNewUser: (value: boolean) => void;
+  setProfile: (profile: Profile | null) => void;
   signIn: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
@@ -27,6 +28,7 @@ export const AuthContext = createContext<AuthContextType>({
   isNewUser: false,
   isProfileSetupMode: false,
   setIsNewUser: () => {},
+  setProfile: () => {},
   signIn: async () => {},
   signOut: async () => {},
   updateProfile: async () => {},

@@ -32,7 +32,7 @@ const RootLayoutNav = () => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === 'auth';
-    const hasRequiredProfileFields = profile?.handle && profile?.avatar_url;
+    const hasRequiredProfileFields = !!profile?.handle && !!profile?.avatar_url;
     
     console.log('Navigation state:', { 
       user: !!user, 

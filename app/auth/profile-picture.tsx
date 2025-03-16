@@ -14,7 +14,7 @@ export default function ProfilePictureScreen() {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
-  const { user, profile, isNewUser, isProfileSetupMode, updateProfile } = useAuth();
+  const { user, profile, isNewUser, isProfileSetupMode, updateProfile, setProfile } = useAuth();
 
   useEffect(() => {
     console.log('[ProfilePictureScreen] Mounted with state:', {
@@ -57,11 +57,13 @@ export default function ProfilePictureScreen() {
 
   useEffect(() => {
     return () => {
-      setImage(null);
-      setError('');
-      setIsLoading(false);
+      if (!isProfileSetupMode) {
+        setImage(null);
+        setError('');
+        setIsLoading(false);
+      }
     };
-  }, []);
+  }, [isProfileSetupMode]);
 
   const pickImage = async (): Promise<void> => {
     try {
@@ -113,13 +115,15 @@ export default function ProfilePictureScreen() {
         throw new Error('Invalid image data');
       }
 
+      // Generate a unique filename
       const fileName = `${user.id}-${Date.now()}.jpg`;
-      const filePath = `avatars/${fileName}`;
 
+      console.log('[ProfilePictureScreen] Uploading image to storage:', fileName);
+      
       // Upload image
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, decode(base64Data), {
+        .upload(fileName, decode(base64Data), {
           contentType: 'image/jpeg',
           upsert: true,
         });
@@ -129,31 +133,41 @@ export default function ProfilePictureScreen() {
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
-      // Update profile
-      const { error: updateError } = await supabase
+      console.log('[ProfilePictureScreen] Image uploaded, public URL:', publicUrl);
+
+      // Direct Supabase upsert instead of using updateProfile
+      const { data, error: updateError } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           avatar_url: publicUrl,
           updated_at: new Date().toISOString(),
-        });
+        })
+        .select()
+        .single();
 
       if (updateError) throw updateError;
 
-      // Update local state
-      updateProfile({ ...profile!, avatar_url: publicUrl, updated_at: new Date().toISOString() });
+      console.log('[ProfilePictureScreen] Profile updated with avatar URL');
       
-      if (isNewUser || isProfileSetupMode) {
-        // Clear setup mode states before navigation
-        await AsyncStorage.removeItem('isNewUser');
-        await AsyncStorage.removeItem('isProfileSetupMode');
-        router.push('/(tabs)');
-      } else {
-        router.back();
+      // Manually update the profile state
+      if (data) {
+        setProfile(data);
       }
+      
+      // Clear profile setup mode and redirect to main app
+      await AsyncStorage.removeItem('isProfileSetupMode');
+      await AsyncStorage.removeItem('isNewUser');
+      console.log('[ProfilePictureScreen] Profile setup complete, redirecting to main app');
+      
+      // Force a small delay to ensure state updates before navigation
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 500);
     } catch (error) {
+      console.error('[ProfilePictureScreen] Error:', error);
       if (error instanceof StorageError) {
         setError(`Storage error: ${error.message}`);
       } else if (error instanceof PostgrestError) {
@@ -165,7 +179,7 @@ export default function ProfilePictureScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [image, user, profile, isNewUser, isProfileSetupMode, updateProfile, router]);
+  }, [image, user, router]);
 
   return (
     <View style={styles.container}>

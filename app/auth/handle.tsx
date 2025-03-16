@@ -11,7 +11,7 @@ export default function HandleScreen() {
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
-  const { user, profile, isNewUser, isProfileSetupMode } = useAuth();
+  const { user, profile, isNewUser, isProfileSetupMode, updateProfile, setProfile } = useAuth();
 
   useEffect(() => {
     const initializeScreen = async () => {
@@ -106,35 +106,37 @@ export default function HandleScreen() {
       setIsLoading(true);
       setError('');
 
-      // Add validation with better error messages
       const validationError = await validateHandle(handle);
       if (validationError) {
-        console.log('[HandleScreen] Validation failed:', validationError);
         setError(validationError);
         setIsLoading(false);
         return;
       }
 
-      console.log('[HandleScreen] Upserting profile...');
-      const { error: updateError } = await supabase
+      console.log('[HandleScreen] Upserting profile with handle:', handle);
+      const { data, error: updateError } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
-          handle,
+          handle: handle.trim(),
           updated_at: new Date().toISOString(),
-        });
+        })
+        .select()
+        .single();
 
-      if (updateError) {
-        console.error('[HandleScreen] Profile update failed:', updateError);
-        throw new Error(updateError.message || 'Failed to save handle');
+      if (updateError) throw updateError;
+
+      console.log('[HandleScreen] Profile updated successfully with handle:', handle);
+      
+      if (data) {
+        setProfile(data);
       }
-
-      console.log('[HandleScreen] Profile updated successfully');
+      
       router.replace('/auth/profile-picture');
     } catch (error) {
-      console.error('[HandleScreen] Submission error:', error);
+      console.error('[HandleScreen] Error updating profile:', error);
       setError(error instanceof Error ? 
-        error.message.replace('handle', 'username') :  // More user-friendly
+        error.message.replace('handle', 'username') :
         'Failed to save username. Please try again.'
       );
     } finally {

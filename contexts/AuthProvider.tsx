@@ -30,26 +30,27 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       avatar_url: profileData?.avatar_url
     });
 
-    // Always set setup mode if profile is incomplete
+    // Get current state first
+    const storedIsProfileSetupMode = await AsyncStorage.getItem('isProfileSetupMode');
+    
+    // Only set setup mode if profile is incomplete AND we're not already in setup mode
     if (!profileData || !profileData.handle || !profileData.avatar_url) {
-      console.log('Profile incomplete - enabling setup mode');
-      setIsProfileSetupMode(true);
-      await AsyncStorage.setItem('isProfileSetupMode', 'true');
+      if (storedIsProfileSetupMode !== 'true') {
+        console.log('Profile incomplete - enabling setup mode');
+        setIsProfileSetupMode(true);
+        await AsyncStorage.setItem('isProfileSetupMode', 'true');
+      }
       return true;
     }
 
-    // Only disable setup mode if we have a complete profile
-    const storedIsProfileSetupMode = await AsyncStorage.getItem('isProfileSetupMode');
-    if (storedIsProfileSetupMode !== 'true') {
+    // If profile is complete, ensure setup mode is disabled
+    if (storedIsProfileSetupMode === 'true') {
       console.log('Profile complete - disabling setup mode');
       setIsProfileSetupMode(false);
       await AsyncStorage.removeItem('isProfileSetupMode');
-    } else {
-      console.log('Keeping setup mode enabled due to stored state');
-      setIsProfileSetupMode(true);
     }
     
-    return storedIsProfileSetupMode === 'true';
+    return false;
   };
 
   useEffect(() => {
@@ -100,6 +101,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
             await checkAndSetProfileSetupMode(profileData);
           }
         }
+        
         
         setIsLoading(false);
       } catch (error) {
@@ -269,13 +271,21 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     try {
       setIsLoading(true);
 
+      if (!user?.id) {
+        throw new Error('User not found');
+      }
+
       if (newProfile.handle) {
-        const { data: existingHandle } = await supabase
+        const { data: existingHandle, error: handleCheckError } = await supabase
           .from('profiles')
           .select('id')
           .eq('handle', newProfile.handle)
-          .neq('id', user?.id)
+          .neq('id', user.id)
           .single();
+
+        if (handleCheckError && handleCheckError.code !== 'PGRST116') {
+          throw handleCheckError;
+        }
 
         if (existingHandle) {
           throw new Error('Handle already taken');
@@ -287,18 +297,41 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
+      // Check if profile exists first
+      const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
-        .update(updates)
-        .eq('id', user?.id)
-        .select()
+        .select('id')
+        .eq('id', user.id)
         .single();
 
+      let operation;
+      if (checkError && checkError.code === 'PGRST116') {
+        // Profile doesn't exist, use insert
+        operation = supabase
+          .from('profiles')
+          .insert({ id: user.id, ...updates })
+          .select();
+      } else {
+        // Profile exists, use update
+        operation = supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', user.id)
+          .select();
+      }
+
+      const { data, error } = await operation.single();
+
       if (error) throw error;
+      
+      console.log('Profile updated successfully:', data);
       setProfile(data);
+      
+      return data;
     } catch (error) {
       console.error('Profile update error:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update profile');
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -331,7 +364,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
       const fileExt = uri.split('.').pop();
       const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const filePath = fileName;
 
       const { error: uploadError, data } = await supabase.storage
         .from('avatars')
@@ -398,6 +431,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     uploadAvatar,
     startProfileSetup,
     setIsNewUser,
+    setProfile,
     pickImage,
     refreshUser,
   };

@@ -6,7 +6,8 @@ import { supabase } from '../../lib/supabase';
 import { useState } from 'react';
 
 export default function AccountScreen() {
-  const { signOut, user, profile } = useAuth();
+  const { signOut, user, profile, isProfileSetupMode } = useAuth();
+  console.log("Account Screen Profile:", profile);
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -23,15 +24,17 @@ export default function AccountScreen() {
   };
 
   const getAvatarUrl = () => {
-    if (!profile?.avatar_url) return null;
-    return supabase.storage
-      .from('avatars')
-      .getPublicUrl(profile.avatar_url)
-      .data.publicUrl;
+    if (!profile?.avatar_url) {
+      console.log("Avatar URL is null or profile is undefined");
+      return null;
+    }
+    const avatarUrlWithCacheBust = `${profile.avatar_url}?ts=${Date.now()}`;
+    console.log("Generated Avatar URL:", avatarUrlWithCacheBust);
+    return avatarUrlWithCacheBust;
   };
 
-  const navigateToEdit = (screen: string) => {
-    router.push(`/auth/${screen}`);
+  const navigateToEdit = () => {
+    router.push('/auth/edit-profile');
   };
 
   return (
@@ -39,7 +42,7 @@ export default function AccountScreen() {
       {/* Header Section */}
       <View className="bg-blue-500 pt-12 pb-8 px-5 rounded-b-3xl shadow-md">
         <View className="items-center">
-          <TouchableOpacity
+        <TouchableOpacity
             onPress={() => navigateToEdit('profile-picture')}
             className="mb-4"
           >
@@ -47,6 +50,7 @@ export default function AccountScreen() {
               <Image
                 source={{ uri: getAvatarUrl() }}
                 className="w-24 h-24 rounded-full border-4 border-white"
+                onError={(error) => console.log("Image loading error:", error.nativeEvent)}
               />
             ) : (
               <View className="w-24 h-24 rounded-full bg-blue-400 items-center justify-center border-4 border-white">
@@ -63,17 +67,6 @@ export default function AccountScreen() {
 
       {/* Settings Section */}
       <View className="p-5 space-y-4">
-        <TouchableOpacity
-          onPress={() => navigateToEdit('handle')}
-          className="flex-row items-center justify-between bg-gray-50 p-4 rounded-xl"
-        >
-          <View className="flex-row items-center">
-            <MaterialIcons name="edit" size={24} color="#4B5563" />
-            <Text className="ml-3 text-gray-700 font-medium">Edit Handle</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={24} color="#4B5563" />
-        </TouchableOpacity>
-
         <TouchableOpacity
           onPress={handleLogout}
           disabled={isLoggingOut}
