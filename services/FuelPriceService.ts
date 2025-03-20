@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
 
 export interface FuelStation {
   address: string;
@@ -351,5 +352,99 @@ export class FuelPriceService {
 
   getLastUpdated(): string | null {
     return this.lastUpdated;
+  }
+
+  // Add new method to fetch historical prices
+  async getHistoricalPrices(
+    siteId: string,
+    fuelType?: string,
+    days: number = 7
+  ): Promise<{
+    e10: { price: number; recorded_at: string }[];
+    b7: { price: number; recorded_at: string }[];
+    e5: { price: number; recorded_at: string }[];
+    sdv: { price: number; recorded_at: string }[];
+  }> {
+    try {
+      const query = supabase
+        .from('historical_fuel_prices')
+        .select('fuel_type, price, recorded_at')
+        .eq('site_id', siteId)
+        .gte('recorded_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+        .order('recorded_at', { ascending: true });
+      
+      // If a specific fuel type is requested, filter for it
+      if (fuelType) {
+        query.eq('fuel_type', fuelType.toUpperCase());
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const historicalData = {
+        e10: [] as { price: number; recorded_at: string }[],
+        b7: [] as { price: number; recorded_at: string }[],
+        e5: [] as { price: number; recorded_at: string }[],
+        sdv: [] as { price: number; recorded_at: string }[]
+      };
+
+      data.forEach(record => {
+        const type = record.fuel_type.toLowerCase();
+        if (historicalData[type]) {
+          historicalData[type].push({
+            price: record.price,
+            recorded_at: record.recorded_at
+          });
+        }
+      });
+
+      return historicalData;
+    } catch (error) {
+      console.error('Error fetching historical prices:', error);
+      return {
+        e10: [],
+        b7: [],
+        e5: [],
+        sdv: []
+      };
+    }
+  }
+
+  async getLatestPrices(): Promise<FuelStation[]> {
+    try {
+      // Get all the latest prices from the latest_fuel_prices table
+      const { data, error } = await supabase
+        .from('latest_fuel_prices')
+        .select('*');
+
+      if (error) throw error;
+
+      // Convert the flat structure back to FuelStation format
+      const stationMap = new Map();
+      
+      data.forEach(record => {
+        if (!stationMap.has(record.site_id)) {
+          stationMap.set(record.site_id, {
+            site_id: record.site_id,
+            brand: record.brand,
+            prices: {},
+            // Add other required fields with placeholder values
+            address: '',
+            location: { latitude: 0, longitude: 0 },
+            postcode: ''
+          });
+        }
+        
+        const station = stationMap.get(record.site_id);
+        station.prices[record.fuel_type] = record.price;
+      });
+      
+      return Array.from(stationMap.values());
+    } catch (error) {
+      console.error('Error fetching latest prices:', error);
+      // Fallback to API call if needed
+      return this.fetchFuelPrices();
+    }
   }
 }
