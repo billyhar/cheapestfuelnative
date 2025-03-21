@@ -106,7 +106,6 @@ export default function PriceHistoryWrapper({ siteId, fuelType }: PriceHistoryWr
         strokeWidth: 2
       }
     ],
-    legend: ["Fuel Price"]
   };
   
   // Chart configuration
@@ -171,10 +170,6 @@ export default function PriceHistoryWrapper({ siteId, fuelType }: PriceHistoryWr
           yAxisLabel="£"
         />
       </View>
-      
-      <Text className="text-center text-xs text-gray-400 mt-4">
-        Data updated daily from official sources
-      </Text>
     </View>
   );
 } 

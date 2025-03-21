@@ -81,8 +81,7 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
 
   return (
     <View className="bg-white p-4 rounded-2xl my-2 shadow-sm">
-      <Text className="font-bold text-lg mb-4 text-gray-800">Price History</Text>
-      
+      <Text className="font-bold text-lg mb-4 text-gray-800">Price History</Text>      
       <View className="flex-row justify-between mb-4">
         <View className="flex-1">
           <Text className="text-sm text-gray-500 mb-1">Current</Text>
@@ -106,10 +105,6 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
           {priceHistory.length} data points from {format(parseISO(priceHistory[0].recorded_at), 'dd MMM yyyy')}
         </Text>
       </View>
-      
-      <Text className="text-center text-xs text-gray-400 mt-4">
-        Data updated daily from official sources
-      </Text>
     </View>
   );
 } 

@@ -257,7 +257,7 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Nearby Stations</Text>
             <View style={styles.cardHeaderActions}>
-              <TouchableOpacity 
+              {/* <TouchableOpacity 
                 style={styles.refreshButton}
                 onPress={async () => {
                   const location = await Location.getCurrentPositionAsync({});
@@ -268,7 +268,7 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
                 }}
               >
                 <Ionicons name="refresh" size={20} color={AppTheme.colors.primary} />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               <View style={styles.radiusSelector}>
                 {[2, 5, 10].map(radius => (
                   <TouchableOpacity
