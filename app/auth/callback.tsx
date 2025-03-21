@@ -135,10 +135,10 @@ export default function AuthCallback() {
 
         console.log('Profile status:', profile ? 'Found' : 'Not found');
         
-        // If this is a new user (no profile or no handle)
+        // If this is a new user (no profile or incomplete profile)
         if (!profile || !profile.handle) {
           console.log('New user detected, setting up profile...');
-          // Clear any existing profile data
+          // Clear any existing incomplete profile data
           if (profile && !profile.handle) {
             console.log('Removing incomplete profile...');
             await supabase
@@ -160,7 +160,7 @@ export default function AuthCallback() {
           }
           return;
         } else {
-          console.log('Existing user detected, redirecting to main app');
+          console.log('Existing user detected with complete profile, redirecting to main app');
           // Clear both flags for existing user
           await Promise.all([
             AsyncStorage.removeItem('isNewUser'),

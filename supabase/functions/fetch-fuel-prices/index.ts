@@ -17,6 +17,8 @@ interface FuelPrice {
 
 Deno.serve(async () => {
   try {
+    console.log(`[${new Date().toISOString()}] Fuel prices fetch started`);
+    
     // Define your fuel API endpoints based on your app's data sources
     const apiEndpoints = [
       {
@@ -236,13 +238,18 @@ Deno.serve(async () => {
     // Upsert to latest_fuel_prices table
     let latestError = null;
     if (latestRecords.length > 0) {
-      const { error } = await supabase
-        .from('latest_fuel_prices')
-        .upsert(latestRecords, { 
-          onConflict: 'site_id,fuel_type',
-          ignoreDuplicates: false
-        });
-      latestError = error;
+      try {
+        const { error } = await supabase
+          .from('latest_fuel_prices')
+          .upsert(latestRecords, { 
+            onConflict: 'site_id,fuel_type',
+            ignoreDuplicates: true
+          });
+        latestError = error;
+      } catch (err) {
+        console.error('Error during upsert:', err);
+        latestError = { message: 'Error during upsert operation' };
+      }
     }
 
     return new Response(JSON.stringify({ 
