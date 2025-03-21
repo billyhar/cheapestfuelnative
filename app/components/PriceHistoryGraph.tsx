@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ActivityIndicator, Dimensions, TouchableWithoutFeedback } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
+import { View, Text, ActivityIndicator, Dimensions } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { FuelPriceService } from '../../services/FuelPriceService';
 
@@ -50,12 +49,10 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
 
   if (error) {
     return (
-      <TouchableWithoutFeedback onPress={loadPriceHistory}>
-        <View className="h-[220px] justify-center items-center bg-red-50 rounded-2xl">
-          <Text className="text-red-600 text-base">{error}</Text>
-          <Text className="text-red-400 text-xs mt-2">Tap to retry</Text>
-        </View>
-      </TouchableWithoutFeedback>
+      <View className="h-[220px] justify-center items-center bg-red-50 rounded-2xl">
+        <Text className="text-red-600 text-base">{error}</Text>
+        <Text className="text-red-400 text-xs mt-2">Tap to retry</Text>
+      </View>
     );
   }
 
@@ -73,50 +70,6 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
     // If price is likely in pence (over 100), convert to pounds
     return price > 100 ? price / 100 : price;
   };
-
-  const chartData = {
-    labels: priceHistory.map(item => format(parseISO(item.recorded_at), 'dd MMM')),
-    datasets: [
-      {
-        data: priceHistory.map(item => formatPriceForDisplay(item.price)),
-        color: (opacity = 1) => `rgba(0, 119, 255, ${opacity})`, // Blue
-        strokeWidth: 3
-      }
-    ]
-  };
-
-  const chartConfig = {
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 2,
-    color: (opacity = 1) => `rgba(0, 119, 255, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    style: {
-      borderRadius: 16
-    },
-    propsForDots: {
-      r: '5',
-      strokeWidth: '2',
-      stroke: '#0077FF'
-    },
-    propsForBackgroundLines: {
-      strokeDasharray: '5, 5',
-      strokeWidth: 1
-    }
-  };
-
-  const getMinMaxPrices = () => {
-    const prices = priceHistory.map(item => formatPriceForDisplay(item.price));
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    // Add buffer to make chart more visually pleasing
-    return { 
-      min: min - (max - min) * 0.1, 
-      max: max + (max - min) * 0.1 
-    };
-  };
-
-  const { min, max } = getMinMaxPrices();
   
   // Get current price and initial price for stats
   const currentPrice = formatPriceForDisplay(priceHistory[priceHistory.length - 1].price);
@@ -128,8 +81,7 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
 
   return (
     <View className="bg-white p-4 rounded-2xl my-2 shadow-sm">
-      <Text className="font-bold text-lg mb-4 text-gray-800">Price History</Text>
-      
+      <Text className="font-bold text-lg mb-4 text-gray-800">Price History</Text>      
       <View className="flex-row justify-between mb-4">
         <View className="flex-1">
           <Text className="text-sm text-gray-500 mb-1">Current</Text>
@@ -144,24 +96,15 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
         </View>
       </View>
       
-      <LineChart
-        data={chartData}
-        width={screenWidth}
-        height={220}
-        chartConfig={chartConfig}
-        bezier
-        style={{
-          marginVertical: 8,
-          borderRadius: 16
-        }}
-        yAxisSuffix="p"
-        fromZero={false}
-        formatYLabel={(value) => `£${Number(value).toFixed(2)}`}
-      />
-      
-      <Text className="text-center text-xs text-gray-400 mt-4">
-        Data updated daily from official sources
-      </Text>
+      {/* Simplified mock chart */}
+      <View 
+        className="h-[220px] bg-gray-100 rounded-2xl justify-center items-center"
+      >
+        <Text className="text-gray-600">Price history visualization</Text>
+        <Text className="text-gray-500 text-xs mt-2">
+          {priceHistory.length} data points from {format(parseISO(priceHistory[0].recorded_at), 'dd MMM yyyy')}
+        </Text>
+      </View>
     </View>
   );
 } 

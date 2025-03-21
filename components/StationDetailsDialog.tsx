@@ -2,8 +2,7 @@ import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, Platform, Linking, Animated, ActionSheetIOS, Alert, ScrollView, Pressable } from 'react-native';
 import { FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
-import { PriceHistoryGraph } from '../app/components/PriceHistoryGraph';
-import { ErrorBoundary } from 'react-error-boundary';
+import PriceHistoryWrapper from './PriceHistoryWrapper';
 
 const formatLastUpdated = (timestamp: string | null): string => {
   try {
@@ -60,9 +59,16 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   
   // Function to directly handle tab button presses
   const handleFuelTypeChange = (fuelType: 'E10' | 'B7') => {
-    setSelectedFuelType(fuelType);
+    // Set state with a callback to ensure we're using the most current state
+    setSelectedFuelType((prev) => {
+      console.log(`Changing fuel type from ${prev} to ${fuelType}`);
+      return fuelType;
+    });
+    
     // Scroll to top when switching tabs to avoid any scroll position issues
-    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: false });
+    }
   };
 
   const getBrandLogo = (brand: string) => {
@@ -175,32 +181,30 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               <Text className="text-base text-gray-600 mt-1">{station.address}</Text>
               <Text className="text-xs text-gray-600 mt-1">{station.postcode}</Text>
             </View>
-            <Pressable 
+            <TouchableOpacity 
               onPress={onClose}
               className="h-12 w-12 rounded-full bg-gray-100 items-center justify-center pb-1"
             >
               <Text className="text-3xl text-gray-500">×</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           {/* Segmented Control for Fuel Type - Simplified to avoid navigation context issues */}
           {station.prices.E10 && station.prices.B7 && (
             <View className="flex-row bg-gray-100 rounded-full p-1 mb-4">
-              <Pressable
+              <TouchableOpacity
                 className={`flex-1 py-2 px-4 rounded-full ${
                   selectedFuelType === 'E10' ? 'bg-white' : ''
                 }`}
                 onPress={() => handleFuelTypeChange('E10')}
-                style={({ pressed }) => [
-                  {
-                    opacity: pressed ? 0.7 : 1,
-                    shadowColor: selectedFuelType === 'E10' ? '#000' : 'transparent',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: selectedFuelType === 'E10' ? 0.2 : 0,
-                    shadowRadius: selectedFuelType === 'E10' ? 2 : 0,
-                    elevation: selectedFuelType === 'E10' ? 2 : 0
-                  }
-                ]}
+                activeOpacity={0.7}
+                style={{
+                  shadowColor: selectedFuelType === 'E10' ? '#000' : 'transparent',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: selectedFuelType === 'E10' ? 0.2 : 0,
+                  shadowRadius: selectedFuelType === 'E10' ? 2 : 0,
+                  elevation: selectedFuelType === 'E10' ? 2 : 0
+                }}
               >
                 <Text
                   className={`text-center font-medium ${
@@ -209,23 +213,21 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
                 >
                   Petrol (E10)
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
               
-              <Pressable
+              <TouchableOpacity
                 className={`flex-1 py-2 px-4 rounded-full ${
                   selectedFuelType === 'B7' ? 'bg-white' : ''
                 }`}
                 onPress={() => handleFuelTypeChange('B7')}
-                style={({ pressed }) => [
-                  {
-                    opacity: pressed ? 0.7 : 1,
-                    shadowColor: selectedFuelType === 'B7' ? '#000' : 'transparent',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: selectedFuelType === 'B7' ? 0.2 : 0,
-                    shadowRadius: selectedFuelType === 'B7' ? 2 : 0,
-                    elevation: selectedFuelType === 'B7' ? 2 : 0
-                  }
-                ]}
+                activeOpacity={0.7}
+                style={{
+                  shadowColor: selectedFuelType === 'B7' ? '#000' : 'transparent',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: selectedFuelType === 'B7' ? 0.2 : 0,
+                  shadowRadius: selectedFuelType === 'B7' ? 2 : 0,
+                  elevation: selectedFuelType === 'B7' ? 2 : 0
+                }}
               >
                 <Text
                   className={`text-center font-medium ${
@@ -234,7 +236,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
                 >
                   Diesel (B7)
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -249,21 +251,10 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           </View>
 
           {/* Price History Graph */}
-          <ErrorBoundary 
-            fallbackRender={() => (
-              <View className="bg-gray-50 rounded-2xl p-4">
-                <Text className="text-center text-gray-600">
-                  Unable to load price history
-                </Text>
-              </View>
-            )}
-            onError={(error) => console.error("PriceHistoryGraph error:", error)}
-          >
-            <PriceHistoryGraph 
-              siteId={station.site_id} 
-              fuelType={selectedFuelType === 'E10' ? 'e10' : 'b7'} 
-            />
-          </ErrorBoundary>
+          <PriceHistoryWrapper 
+            siteId={station.site_id} 
+            fuelType={selectedFuelType.toLowerCase() as 'e10' | 'b7'} 
+          />
 
           {/* Last Updated */}
           <Text className="text-sm text-gray-500 text-center mb-4 mt-2">
@@ -271,17 +262,13 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           </Text>
 
           {/* Directions Button */}
-          <Pressable
+          <TouchableOpacity
             className="bg-brand rounded-2xl p-4 flex-row items-center justify-center"
             onPress={handleGetDirections}
-            style={({ pressed }) => [
-              {
-                opacity: pressed ? 0.8 : 1
-              }
-            ]}
+            activeOpacity={0.8}
           >
             <Text className="text-white font-semibold text-lg">Get Directions</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </Animated.View>

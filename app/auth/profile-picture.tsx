@@ -140,32 +140,20 @@ export default function ProfilePictureScreen() {
 
       console.log('[ProfilePictureScreen] Image uploaded, public URL:', publicUrl);
 
-      // Simplified upsert operation
-      const { data, error: updateError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          avatar_url: publicUrl,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' })
-        .select()
-        .single();
-
-      if (updateError) {
+      // Use updateProfile from context instead of direct Supabase call
+      try {
+        await updateProfile({ avatar_url: publicUrl });
+        console.log('[ProfilePictureScreen] Profile updated with avatar URL');
+      } catch (updateError) {
         console.error('[ProfilePictureScreen] Profile update error:', updateError);
         throw updateError;
       }
-
-      console.log('[ProfilePictureScreen] Profile updated with avatar URL');
-      
-      // Update local state
-      if (data) {
-        setProfile(data);
-      }
       
       // Clear profile setup mode
-      await AsyncStorage.removeItem('isProfileSetupMode');
-      await AsyncStorage.removeItem('isNewUser');
+      await Promise.all([
+        AsyncStorage.removeItem('isProfileSetupMode'),
+        AsyncStorage.removeItem('isNewUser')
+      ]);
       console.log('[ProfilePictureScreen] Profile setup complete, redirecting to main app');
       
       // Navigate to main app
@@ -183,7 +171,7 @@ export default function ProfilePictureScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [image, user, router]);
+  }, [image, user, router, updateProfile]);
 
   return (
     <View style={styles.container}>

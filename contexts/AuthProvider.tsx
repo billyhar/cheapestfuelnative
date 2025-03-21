@@ -40,24 +40,23 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       return !!storedIsProfileSetupMode;
     }
     
-    // Only set setup mode if profile is incomplete AND we're not already in setup mode
-    if (!profileData || !profileData.handle || !profileData.avatar_url) {
-      if (storedIsProfileSetupMode !== 'true') {
-        console.log('Profile incomplete - enabling setup mode');
-        setIsProfileSetupMode(true);
-        await AsyncStorage.setItem('isProfileSetupMode', 'true');
-      }
-      return true;
-    }
-
+    // Check if the profile is complete
+    const isProfileComplete = profileData && profileData.handle && profileData.avatar_url;
+    
     // If profile is complete, ensure setup mode is disabled
-    if (storedIsProfileSetupMode === 'true') {
+    if (isProfileComplete) {
       console.log('Profile complete - disabling setup mode');
       setIsProfileSetupMode(false);
       await AsyncStorage.removeItem('isProfileSetupMode');
+      await AsyncStorage.removeItem('isNewUser');
+      return false;
     }
     
-    return false;
+    // Only set setup mode if profile is incomplete
+    console.log('Profile incomplete - enabling setup mode');
+    setIsProfileSetupMode(true);
+    await AsyncStorage.setItem('isProfileSetupMode', 'true');
+    return true;
   };
 
   useEffect(() => {
@@ -170,11 +169,31 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
             }
           } else if (profileData) {
             setProfile(profileData);
-            const needsSetup = await checkAndSetProfileSetupMode(profileData);
             
-            if (needsSetup && !pathname?.includes('/auth/handle')) {
-              console.log('Redirecting to handle setup (incomplete profile)');
-              router.replace('/auth/handle');
+            // Check if profile is complete
+            const isProfileComplete = profileData && profileData.handle && profileData.avatar_url;
+            
+            if (isProfileComplete) {
+              console.log('Complete profile found - bypassing setup flow');
+              setIsNewUser(false);
+              setIsProfileSetupMode(false);
+              await Promise.all([
+                AsyncStorage.removeItem('isNewUser'),
+                AsyncStorage.removeItem('isProfileSetupMode')
+              ]);
+              
+              // Redirect to main app if not already there
+              if (!pathname?.includes('/(tabs)')) {
+                router.replace('/(tabs)');
+              }
+            } else {
+              console.log('Incomplete profile found - redirecting to setup flow');
+              setIsProfileSetupMode(true);
+              await AsyncStorage.setItem('isProfileSetupMode', 'true');
+              
+              if (!pathname?.includes('/auth/handle')) {
+                router.replace('/auth/handle');
+              }
             }
           }
         } catch (error) {

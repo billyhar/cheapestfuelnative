@@ -81,11 +81,14 @@ export default function HandleScreen() {
   }, [isLoading]);
 
   useEffect(() => {
-    if (profile?.handle && isProfileSetupMode) {
+    // Only navigate if we have a complete profile and we're not coming from a fresh render
+    if (profile?.handle && isProfileSetupMode && !isLoading) {
       console.log('[HandleScreen] Profile has handle and in setup mode - navigating to profile picture');
-      router.replace('/auth/profile-picture');
+      setTimeout(() => {
+        router.replace('/auth/profile-picture');
+      }, 500);
     }
-  }, [profile?.handle, isProfileSetupMode]);
+  }, [profile?.handle, isProfileSetupMode, isLoading]);
 
   // Direct navigation function
   const navigateToProfilePicture = () => {
@@ -158,37 +161,25 @@ export default function HandleScreen() {
         return;
       }
 
-      // Update profile in Supabase
+      // Use updateProfile from context instead of direct Supabase call
       console.log('[HandleScreen] Updating profile with handle:', handle);
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          handle: handle.trim(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[HandleScreen] Database error:', error);
-        throw error;
+      try {
+        await updateProfile({ handle: handle.trim() });
+        console.log('[HandleScreen] Profile updated successfully');
+        
+        // Refresh user data to ensure we have the latest profile
+        await refreshUser();
+        
+        // Clear loading state
+        setIsLoading(false);
+        
+        // Navigate directly to profile picture screen
+        console.log('[HandleScreen] Navigating directly to profile picture screen');
+        navigateToProfilePicture();
+      } catch (updateError) {
+        console.error('[HandleScreen] Profile update error:', updateError);
+        throw updateError;
       }
-
-      if (!data) {
-        throw new Error('No data returned from profile update');
-      }
-
-      // Update local state
-      console.log('[HandleScreen] Profile updated successfully:', data);
-      setProfile(data);
-      
-      // Clear loading state before navigation
-      setIsLoading(false);
-      
-      // Navigate to profile picture screen
-      console.log('[HandleScreen] Navigating to profile picture screen');
-      router.replace('/auth/profile-picture');
     } catch (error) {
       console.error('[HandleScreen] Error:', error);
       setError(error instanceof Error ? 
