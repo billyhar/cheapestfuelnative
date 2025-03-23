@@ -7,6 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { AppTheme } from '../constants/BrandAssets';
+import UpvoteButton from './UpvoteButton';
+import UpvoteDetails from './UpvoteDetails';
 
 const formatLastUpdated = (timestamp: string | null): string => {
   try {
@@ -252,7 +254,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           inputRange: [0, 1],
           outputRange: [0, 1]
         }),
-        maxHeight: '80%' // Limit height to prevent overflow
+        maxHeight: '90%' // Increased from 80% to 90%
       }}
     >
       <ScrollView 
@@ -352,12 +354,30 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
 
           {/* Current Price Info */}
           <View className="bg-gray-50 rounded-2xl p-4 mb-4">
-            <Text className="text-base text-gray-600 mb-1">
-              {selectedFuelType === 'E10' ? 'Petrol (E10)' : 'Diesel (B7)'}
-            </Text>
-            <Text className="text-3xl font-bold text-gray-900">
-              £{((selectedFuelType === 'E10' ? station.prices.E10 || 0 : station.prices.B7 || 0) / 100).toFixed(2)}
-            </Text>
+            {/* Fuel Type and Upvote Section */}
+            <View className="flex-row justify-between items-start">
+              <View className="flex-1 mr-4">
+                <Text className="text-base text-gray-600 mb-1">
+                  {selectedFuelType === 'E10' ? 'Petrol (E10)' : 'Diesel (B7)'}
+                </Text>
+                <Text className="text-3xl font-bold text-gray-900">
+                  £{((selectedFuelType === 'E10' ? station.prices.E10 || 0 : station.prices.B7 || 0) / 100).toFixed(2)}
+                </Text>
+              </View>
+              <UpvoteButton 
+                stationId={station.site_id} 
+                fuelType={selectedFuelType} 
+              />
+            </View>
+
+            {/* Divider */}
+            <View className="h-px bg-gray-200 my-3" />
+
+            {/* Upvote Details Section */}
+            <UpvoteDetails 
+              stationId={station.site_id} 
+              fuelType={selectedFuelType} 
+            />
           </View>
 
           {/* Price History Graph */}
