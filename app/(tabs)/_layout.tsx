@@ -86,38 +86,42 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#1B75BA',
-        tabBarInactiveTintColor: '#6B7280',
+        tabBarActiveTintColor: AppTheme.colors.primary,
+        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
-          backgroundColor: 'white',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-          height: Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 30 : 10,
-          paddingTop: 10,
+          backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#FFFFFF',
+          borderTopColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
         },
-        headerShown: true,
+        headerStyle: {
+          backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#FFFFFF',
+        },
+        headerTintColor: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Map',
-          headerTitle: () => (
-            <View className="items-center justify-center">
-              <Image
-                source={require('../../assets/images/CheapestFuel.png')}
-                className="h-[30px]"
-                resizeMode="contain"
-              />
-            </View>
+          title: 'Nearby',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="location" size={size} color={color} />
           ),
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              size={24} 
-              name={focused ? "location" : "location-outline"} 
-              color={color} 
-            />
+        }}
+      />
+      <Tabs.Screen
+        name="favorites"
+        options={{
+          title: 'Favorites',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />

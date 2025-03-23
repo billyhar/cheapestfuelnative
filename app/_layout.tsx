@@ -7,6 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StyleSheet } from 'react-native';
 
 import "../global.css";
 
@@ -177,65 +179,73 @@ const RootLayoutNav = () => {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack 
-        screenOptions={{ 
-          headerShown: false,
-          gestureEnabled: false // Disable swipe back gesture
-        }}
-      >
-        <Stack.Screen 
-          name="auth" 
-          options={{ 
+    <GestureHandlerRootView style={styles.container}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack 
+          screenOptions={{ 
             headerShown: false,
-            animation: 'none',
-            gestureEnabled: false
-          }} 
-        />
-        <Stack.Screen 
-          name="auth/callback" 
-          options={{ 
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false
-          }} 
-        />
-        <Stack.Screen 
-          name="auth/handle" 
-          options={{ 
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false
-          }} 
-        />
-        <Stack.Screen 
-          name="auth/profile-picture" 
-          options={{ 
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false
-          }} 
-        />
-        <Stack.Screen 
-          name="auth/edit-profile" 
-          options={{ 
-            headerShown: false,
-            animation: 'slide_from_right',
-            gestureEnabled: true
-          }} 
-        />
-        <Stack.Screen 
-          name="(tabs)" 
-          options={{ 
-            headerShown: false,
-            animation: 'none',
-            gestureEnabled: false
-          }} 
-        />
-      </Stack>
-    </ThemeProvider>
+            gestureEnabled: false // Disable swipe back gesture
+          }}
+        >
+          <Stack.Screen 
+            name="auth" 
+            options={{ 
+              headerShown: false,
+              animation: 'none',
+              gestureEnabled: false
+            }} 
+          />
+          <Stack.Screen 
+            name="auth/callback" 
+            options={{ 
+              headerShown: false,
+              animation: 'none',
+              gestureEnabled: false
+            }} 
+          />
+          <Stack.Screen 
+            name="auth/handle" 
+            options={{ 
+              headerShown: false,
+              animation: 'none',
+              gestureEnabled: false
+            }} 
+          />
+          <Stack.Screen 
+            name="auth/profile-picture" 
+            options={{ 
+              headerShown: false,
+              animation: 'none',
+              gestureEnabled: false
+            }} 
+          />
+          <Stack.Screen 
+            name="auth/edit-profile" 
+            options={{ 
+              headerShown: false,
+              animation: 'slide_from_right',
+              gestureEnabled: true
+            }} 
+          />
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{ 
+              headerShown: false,
+              animation: 'none',
+              gestureEnabled: false
+            }} 
+          />
+        </Stack>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
 
 const RootLayout = () => {
   return (
