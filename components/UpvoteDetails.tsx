@@ -143,6 +143,13 @@ const UpvoteDetails: React.FC<UpvoteDetailsProps> = ({ stationId, fuelType }) =>
               <Text className="text-sm text-gray-500">No upvotes yet</Text>
             )}
           </ScrollView>
+          <View className="bg-blue-50 p-3 mt-2 rounded-lg mb-3">
+            <View className="flex-row items-start space-x-2">
+              <Text className="text-sm text-blue-700 flex-1">
+                Upvotes are reset when fuel prices are updated to ensure accuracy. Please upvote again if the price is still correct.
+              </Text>
+            </View>
+          </View>
         </View>
       )}
     </View>

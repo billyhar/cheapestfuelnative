@@ -281,7 +281,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               <Text className="text-base text-gray-600 mt-1">{station.address}</Text>
               <Text className="text-xs text-gray-600 mt-1">{station.postcode}</Text>
             </View>
-            <View className="flex-row items-center">
+            <View className="flex-row gap-2 items-center">
               <TouchableOpacity 
                 onPress={toggleFavorite}
                 className="h-12 w-12 rounded-full bg-pink-100 items-center justify-center mr-2"
