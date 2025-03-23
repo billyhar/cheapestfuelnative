@@ -6,7 +6,7 @@ import { BrandLogos } from '../constants/BrandAssets';
 import { MAPBOX_ACCESS_TOKEN } from '../config/mapbox';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import StationDetailsDialog from './StationDetailsDialog';
+import { useRouter } from 'expo-router';
 import FuelTypeFilter from './FuelTypeFilter';
 import PriceLegend from './PriceLegend';
 
@@ -64,6 +64,7 @@ const formatPrice = (price: number): string => {
 };
 
 const FuelPriceMap: React.FC = () => {
+  const router = useRouter();
   const [fuelStations, setFuelStations] = useState<FuelStation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -104,20 +105,11 @@ const FuelPriceMap: React.FC = () => {
 
   useEffect(() => {
     if (selectedStation) {
-      slideAnim.setValue(0);
-      Animated.timing(slideAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.ease)
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-        easing: Easing.in(Easing.ease)
-      }).start();
+      router.push({
+        pathname: '/(modals)/station-details',
+        params: { station: JSON.stringify(selectedStation) }
+      });
+      setSelectedStation(null);
     }
   }, [selectedStation]);
 
@@ -435,15 +427,6 @@ const FuelPriceMap: React.FC = () => {
           <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.loadingText}>Loading fuel prices ⛽️</Text>
         </View>
-      )}
-
-      {/* Station details */}
-      {selectedStation && (
-        <StationDetailsDialog
-          station={selectedStation}
-          onClose={() => setSelectedStation(null)}
-          slideAnim={slideAnim}
-        />
       )}
     </SafeAreaView>
   );

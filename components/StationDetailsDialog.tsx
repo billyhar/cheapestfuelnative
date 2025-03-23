@@ -1,14 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, Platform, Linking, Animated, ActionSheetIOS, Alert, ScrollView, Pressable } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Image, Platform, Linking, Alert, ActionSheetIOS, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
 import PriceHistoryWrapper from './PriceHistoryWrapper';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Ionicons } from '@expo/vector-icons';
-import { AppTheme } from '../constants/BrandAssets';
 import UpvoteButton from './UpvoteButton';
 import UpvoteDetails from './UpvoteDetails';
+import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useRouter } from 'expo-router';
 
 const formatLastUpdated = (timestamp: string | null): string => {
   try {
@@ -47,15 +49,12 @@ const formatLastUpdated = (timestamp: string | null): string => {
 
 interface StationDetailsDialogProps {
   station: FuelStation;
-  onClose: () => void;
-  slideAnim: Animated.Value;
 }
 
 const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   station,
-  onClose,
-  slideAnim,
 }) => {
+  const router = useRouter();
   const { user } = useAuth();
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteId, setFavoriteId] = useState<string | null>(null);
@@ -63,9 +62,33 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
     station.prices.E10 ? 'E10' : 'B7'
   );
   
-  // Create a ref for the scrollView so we can access it directly
-  const scrollViewRef = useRef<ScrollView>(null);
-  
+  // ref
+  const bottomSheetRef = useRef<BottomSheet>(null);
+
+  // variables
+  const snapPoints = ['100%'];
+
+  // callbacks
+  const handleSheetChanges = useCallback((index: number) => {
+    if (index === -1) {
+      router.back();
+    }
+  }, [router]);
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+        pressBehavior="close"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+      />
+    ),
+    []
+  );
+
   useEffect(() => {
     if (user) {
       checkIfFavorite();
@@ -157,18 +180,9 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
     }
   };
 
-  // Function to directly handle tab button presses
+  // Function to handle fuel type changes
   const handleFuelTypeChange = (fuelType: 'E10' | 'B7') => {
-    // Set state with a callback to ensure we're using the most current state
-    setSelectedFuelType((prev) => {
-      console.log(`Changing fuel type from ${prev} to ${fuelType}`);
-      return fuelType;
-    });
-    
-    // Scroll to top when switching tabs to avoid any scroll position issues
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({ y: 0, animated: false });
-    }
+    setSelectedFuelType(fuelType);
   };
 
   const getBrandLogo = (brand: string) => {
@@ -241,34 +255,13 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   };
 
   return (
-    <Animated.View 
-      className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl"
-      style={{
-        transform: [{
-          translateY: slideAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [300, 0]
-          })
-        }],
-        opacity: slideAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1]
-        }),
-        maxHeight: '90%' // Increased from 80% to 90%
-      }}
-    >
-      <ScrollView 
-        ref={scrollViewRef}
-        bounces={false} 
-        className="pb-6"
-        contentContainerStyle={{ paddingBottom: 20 }} // Add extra padding at bottom
-      >
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View className="px-4 pt-4 pb-8">
-          {/* Handle bar for better UX */}
           <View className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4" />
           
           {/* Header */}
-          <View className="flex-row items-top mb-4">
+          <View className="flex-row items-start mb-4">
             <Image 
               source={typeof getBrandLogo(station.brand) === 'string' 
                 ? { uri: getBrandLogo(station.brand) } 
@@ -281,7 +274,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               <Text className="text-base text-gray-600 mt-1">{station.address}</Text>
               <Text className="text-xs text-gray-600 mt-1">{station.postcode}</Text>
             </View>
-            <View className="flex-row gap-2 items-center">
+            <View className="flex-row gap-2 items-center -mt-1">
               <TouchableOpacity 
                 onPress={toggleFavorite}
                 className="h-12 w-12 rounded-full bg-pink-100 items-center justify-center mr-2"
@@ -293,7 +286,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
                 />
               </TouchableOpacity>
               <TouchableOpacity 
-                onPress={onClose}
+                onPress={() => router.back()}
                 className="h-12 w-12 rounded-full bg-gray-100 items-center justify-center pb-1"
               >
                 <Text className="text-3xl text-gray-500">×</Text>
@@ -301,7 +294,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
             </View>
           </View>
 
-          {/* Segmented Control for Fuel Type - Simplified to avoid navigation context issues */}
+          {/* Segmented Control for Fuel Type */}
           {station.prices.E10 && station.prices.B7 && (
             <View className="flex-row bg-gray-100 rounded-full p-1 mb-4">
               <TouchableOpacity
@@ -401,8 +394,20 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </Animated.View>
+    </View>
   );
+};
+
+const styles = {
+  container: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
 };
 
 export default StationDetailsDialog;

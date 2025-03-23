@@ -235,6 +235,18 @@ const RootLayoutNav = () => {
               gestureEnabled: false
             }} 
           />
+          <Stack.Screen 
+            name="(modals)/station-details" 
+            options={{ 
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+              gestureEnabled: true,
+              headerShown: false,
+              contentStyle: {
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              },
+            }} 
+          />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>
@@ -249,9 +261,11 @@ const styles = StyleSheet.create({
 
 const RootLayout = () => {
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 };
 
