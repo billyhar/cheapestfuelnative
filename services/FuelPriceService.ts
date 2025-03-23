@@ -390,8 +390,8 @@ export class FuelPriceService {
       };
 
       data.forEach(record => {
-        const type = record.fuel_type.toLowerCase();
-        if (historicalData[type]) {
+        const type = record.fuel_type.toLowerCase() as keyof typeof historicalData;
+        if (type in historicalData) {
           historicalData[type].push({
             price: record.price,
             recorded_at: record.recorded_at

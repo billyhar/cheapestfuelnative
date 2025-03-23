@@ -1,8 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, Platform, Linking, Animated, ActionSheetIOS, Alert, ScrollView, Pressable } from 'react-native';
 import { FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
 import PriceHistoryWrapper from './PriceHistoryWrapper';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
+import { AppTheme } from '../constants/BrandAssets';
 
 const formatLastUpdated = (timestamp: string | null): string => {
   try {
@@ -50,6 +54,9 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   onClose,
   slideAnim,
 }) => {
+  const { user } = useAuth();
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteId, setFavoriteId] = useState<string | null>(null);
   const [selectedFuelType, setSelectedFuelType] = useState<'E10' | 'B7'>(
     station.prices.E10 ? 'E10' : 'B7'
   );
@@ -57,6 +64,97 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   // Create a ref for the scrollView so we can access it directly
   const scrollViewRef = useRef<ScrollView>(null);
   
+  useEffect(() => {
+    if (user) {
+      checkIfFavorite();
+    }
+  }, [user, station.site_id]);
+
+  const checkIfFavorite = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('favorite_stations')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('station_id', station.site_id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      setIsFavorite(!!data);
+      setFavoriteId(data?.id || null);
+    } catch (error) {
+      console.error('Error checking favorite status:', error);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (!user) {
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to add stations to your favorites.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    try {
+      if (isFavorite && favoriteId) {
+        const { error } = await supabase
+          .from('favorite_stations')
+          .delete()
+          .eq('id', favoriteId);
+
+        if (error) throw error;
+        setIsFavorite(false);
+        setFavoriteId(null);
+      } else {
+        // Convert the date to ISO format if it's in DD/MM/YYYY format
+        let lastUpdated = station.last_updated;
+        if (lastUpdated && lastUpdated.includes('/')) {
+          const [datePart, timePart] = lastUpdated.split(' ');
+          const [day, month, year] = datePart.split('/');
+          const [hours, minutes, seconds] = timePart.split(':');
+          lastUpdated = new Date(+year, +month - 1, +day, +hours, +minutes, +seconds).toISOString();
+        }
+
+        const { data, error } = await supabase
+          .from('favorite_stations')
+          .insert([
+            {
+              user_id: user.id,
+              station_id: station.site_id,
+              station_name: station.brand,
+              station_brand: station.brand,
+              station_address: station.address,
+              station_latitude: station.location.latitude,
+              station_longitude: station.location.longitude,
+              station_price: station.prices.E10 || 0,
+              station_price_b7: station.prices.B7 || 0,
+              station_last_updated: lastUpdated || new Date().toISOString(),
+            },
+          ])
+          .select()
+          .single();
+
+        if (error) throw error;
+        setIsFavorite(true);
+        setFavoriteId(data.id);
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      Alert.alert(
+        'Error',
+        'Failed to update favorite status. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   // Function to directly handle tab button presses
   const handleFuelTypeChange = (fuelType: 'E10' | 'B7') => {
     // Set state with a callback to ensure we're using the most current state
@@ -181,12 +279,24 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               <Text className="text-base text-gray-600 mt-1">{station.address}</Text>
               <Text className="text-xs text-gray-600 mt-1">{station.postcode}</Text>
             </View>
-            <TouchableOpacity 
-              onPress={onClose}
-              className="h-12 w-12 rounded-full bg-gray-100 items-center justify-center pb-1"
-            >
-              <Text className="text-3xl text-gray-500">×</Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center">
+              <TouchableOpacity 
+                onPress={toggleFavorite}
+                className="h-12 w-12 rounded-full bg-pink-100 items-center justify-center mr-2"
+              >
+                <Ionicons
+                  name={isFavorite ? 'heart' : 'heart-outline'}
+                  size={24}
+                  color={isFavorite ? '#eb137e' : '#eb137e'}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={onClose}
+                className="h-12 w-12 rounded-full bg-gray-100 items-center justify-center pb-1"
+              >
+                <Text className="text-3xl text-gray-500">×</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Segmented Control for Fuel Type - Simplified to avoid navigation context issues */}
