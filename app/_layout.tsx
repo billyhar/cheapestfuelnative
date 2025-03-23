@@ -1,11 +1,12 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, useLocalSearchParams } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AuthProvider } from '../contexts/AuthProvider';
 import { useAuth } from '../contexts/AuthContext';
 import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import "../global.css";
 
@@ -17,10 +18,24 @@ export {
 SplashScreen.preventAutoHideAsync();
 
 const RootLayoutNav = () => {
-  const { user, isLoading, isProfileSetupMode, profile } = useAuth();
+  const { user, isLoading, profile } = useAuth();
   const colorScheme = useColorScheme();
   const segments = useSegments();
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  // Clear navigation flags on mount
+  useEffect(() => {
+    const clearNavigationFlags = async () => {
+      await Promise.all([
+        AsyncStorage.removeItem('force_navigation'),
+        AsyncStorage.removeItem('auth_callback_in_progress')
+      ]);
+      console.log('Navigation flags cleared on layout mount');
+    };
+    
+    clearNavigationFlags();
+  }, []);
 
   useEffect(() => {
     if (!isLoading) {
@@ -31,31 +46,105 @@ const RootLayoutNav = () => {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === 'auth';
-    const hasRequiredProfileFields = !!profile?.handle && !!profile?.avatar_url;
-    const currentPath = segments.join('/');
-    const inProfileSetup = currentPath.includes('auth/handle') || currentPath.includes('auth/profile-picture');
-    const inEditProfile = currentPath.includes('auth/edit-profile');
-    
-    console.log('Navigation state:', { 
-      user: !!user, 
-      inAuthGroup, 
-      segments, 
-      isProfileSetupMode,
-      hasProfile: !!profile,
-      hasRequiredProfileFields,
-      currentPath,
-      inProfileSetup,
-      inEditProfile
-    });
+    const checkNavigation = async () => {
+      const inAuthGroup = segments[0] === 'auth';
+      const isCallback = segments.join('/').includes('auth/callback');
+      const currentPath = segments.join('/');
+      const inEditProfile = currentPath.includes('auth/edit-profile');
+      const inTabsAccount = currentPath.includes('(tabs)/Account');
+      
+      // Check for force navigation flag in AsyncStorage
+      const forceNavigation = await AsyncStorage.getItem('force_navigation');
+      const callbackInProgress = await AsyncStorage.getItem('auth_callback_in_progress');
+      
+      // Check for just signed out flag - priority over other checks
+      const justSignedOut = await AsyncStorage.getItem('just_signed_out');
+      if (justSignedOut === 'true') {
+        console.log('Just signed out flag detected, navigating to auth');
+        // Clear the flag first
+        await AsyncStorage.removeItem('just_signed_out');
+        
+        // Use immediate navigation for sign out, with proper cleanup to prevent loops
+        await Promise.all([
+          AsyncStorage.removeItem('force_navigation'),
+          AsyncStorage.removeItem('auth_callback_in_progress'),
+          AsyncStorage.removeItem('last_processed_code'),
+          AsyncStorage.removeItem('isProfileSetupMode') // Clear profile setup mode too
+        ]);
+        
+        // IMPORTANT: This must be synchronous to avoid white screen
+        console.log('Immediately navigating to auth after sign out');
+        router.replace('/auth');
+        return;
+      }
+      
+      // Check for force param in URL
+      const forceParam = params.force === 'true';
+      
+      console.log('Navigation state:', { 
+        user: !!user, 
+        inAuthGroup,
+        segments,
+        hasProfile: !!profile,
+        currentPath,
+        inEditProfile,
+        inTabsAccount,
+        isCallback,
+        forceNavigation,
+        forceParam,
+        callbackInProgress,
+        justSignedOut
+      });
 
-    // If we're in the profile setup flow or edit profile, don't redirect
-    if (inProfileSetup || inEditProfile) {
-      console.log('In profile setup or edit profile flow, not redirecting');
-      return;
-    }
+      // If we're already in the account tab, never redirect
+      if (user && inTabsAccount) {
+        console.log('Already in account tab with authenticated user, not redirecting');
+        return;
+      }
 
-    if (!isLoading) {
+      // Special case for callback screen with authenticated user
+      if (isCallback && user) {
+        console.log('User is authenticated in callback screen - navigating to tabs');
+        router.replace('/(tabs)');
+        return;
+      }
+
+      // If there's a force flag (from AsyncStorage or URL), go to tabs immediately
+      if (forceNavigation === 'true' || forceParam) {
+        console.log('Force navigation detected - immediately going to tabs');
+        // Clear flags first
+        await Promise.all([
+          AsyncStorage.removeItem('force_navigation'),
+          AsyncStorage.removeItem('auth_callback_in_progress'),
+          AsyncStorage.removeItem('just_signed_out')
+        ]);
+        
+        // Use direct navigation to tabs
+        router.replace('/(tabs)');
+        return;
+      }
+
+      // Don't interfere with auth callback that's in progress ONLY if very recent
+      if (isCallback && callbackInProgress === 'true') {
+        console.log('In active callback flow, not redirecting');
+        return;
+      }
+
+      // Add a safety timeout to clear callback in progress flag after 10 seconds
+      // This prevents getting permanently stuck in the callback
+      if (callbackInProgress === 'true') {
+        setTimeout(async () => {
+          console.log('Safety timeout: clearing callback in progress flag');
+          await AsyncStorage.removeItem('auth_callback_in_progress');
+        }, 10000);
+      }
+
+      // If we're already in edit profile, don't redirect
+      if (inEditProfile) {
+        console.log('In edit profile flow, not redirecting');
+        return;
+      }
+
       // Use setTimeout to ensure navigation happens after layout is complete
       setTimeout(() => {
         // If no user, redirect to auth
@@ -65,22 +154,23 @@ const RootLayoutNav = () => {
           return;
         }
 
-        // If user exists but no profile or missing required fields, force profile setup
-        if (user && !hasRequiredProfileFields && !inAuthGroup && !inEditProfile) {
-          console.log('Redirecting to /auth/handle: Missing required profile fields');
-          router.replace('/auth/handle');
-          return;
-        }
-
-        // If user exists, has profile, is in auth group, and not in setup mode, redirect to tabs
-        if (user && hasRequiredProfileFields && inAuthGroup && !isProfileSetupMode && !inEditProfile) {
-          console.log('Redirecting to /(tabs): User has complete profile');
+        // If user exists but in auth group (except specific exceptions), go to tabs
+        if (user && inAuthGroup && !inEditProfile && !isCallback) {
+          console.log('Redirecting to /(tabs): User authenticated and in auth group');
           router.replace('/(tabs)');
           return;
         }
+        
+        // Never redirect away from tabs if user is authenticated
+        if (user && currentPath.includes('/(tabs)')) {
+          console.log('Already in tabs with authenticated user, not redirecting');
+          return;
+        }
       }, 0);
-    }
-  }, [user, isLoading, segments, isProfileSetupMode, profile]);
+    };
+    
+    checkNavigation();
+  }, [user, isLoading, segments, profile, params]);
 
   if (isLoading) {
     return null;

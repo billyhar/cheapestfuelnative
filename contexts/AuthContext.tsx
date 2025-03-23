@@ -7,16 +7,13 @@ export interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
-  isNewUser: boolean;
-  isProfileSetupMode: boolean;
-  setIsNewUser: (value: boolean) => void;
-  setIsProfileSetupMode: (value: boolean) => void;
   setProfile: (profile: Profile | null) => void;
   signIn: (email: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   uploadAvatar: (uri: string) => Promise<string | null>;
-  startProfileSetup: () => Promise<void>;
   pickImage: () => Promise<string | null>;
   refreshUser: () => Promise<void>;
 }
@@ -26,16 +23,13 @@ export const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   isLoading: true,
-  isNewUser: false,
-  isProfileSetupMode: false,
-  setIsNewUser: () => {},
-  setIsProfileSetupMode: () => {},
   setProfile: () => {},
   signIn: async () => {},
+  signInWithGoogle: async () => {},
+  signInWithApple: async () => {},
   signOut: async () => {},
   updateProfile: async () => {},
   uploadAvatar: async () => null,
-  startProfileSetup: async () => {},
   pickImage: async () => null,
   refreshUser: async () => {},
 });

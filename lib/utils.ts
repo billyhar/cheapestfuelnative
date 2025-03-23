@@ -44,4 +44,22 @@ export const getAvatarPublicUrl = async (avatarPath: string | null): Promise<str
     console.error('Error formatting avatar URL:', error);
     return null;
   }
+};
+
+export const getProfileAvatarUrl = (avatarPath: string | null): string | null => {
+  if (!avatarPath) {
+    return null;
+  }
+
+  // If it's already a full URL, return it
+  if (avatarPath.startsWith('http')) {
+    return avatarPath;
+  }
+
+  // Get the public URL from Supabase storage
+  const { data } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(avatarPath);
+
+  return data?.publicUrl || null;
 }; 

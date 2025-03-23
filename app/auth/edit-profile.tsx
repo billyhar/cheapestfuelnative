@@ -2,31 +2,70 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator, SafeAreaView } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter, Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { getAvatarPublicUrl } from '../../lib/utils';
+import { supabase } from '../../lib/supabase';
+import * as FileSystem from 'expo-file-system';
+import { Buffer } from 'buffer';
+import { nanoid } from 'nanoid/non-secure';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 
 export default function EditProfileScreen() {
-  const { user, profile, updateProfile } = useAuth();
-  const router = useRouter();
+  const { user, profile, updateProfile, refreshUser } = useAuth();
   const [handle, setHandle] = useState(profile?.handle || '');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
-    const loadAvatarUrl = async () => {
-      if (profile?.avatar_url) {
-        const url = await getAvatarPublicUrl(profile.avatar_url);
-        setAvatarUrl(url);
-      }
-    };
-    loadAvatarUrl();
-  }, [profile?.avatar_url]);
-
-  useEffect(() => {
+    if (profile?.handle) {
+      setHandle(profile.handle);
+    }
     setHasChanges(handle !== profile?.handle);
   }, [handle, profile?.handle]);
+
+  const uploadImage = async (uri: string): Promise<string | null> => {
+    try {
+      setIsUploadingImage(true);
+      
+      // Get file info
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist');
+      }
+
+      // Read the file
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Convert to binary
+      const arrayBuffer = Buffer.from(base64, 'base64');
+
+      // Generate unique filename
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${nanoid()}.${fileExt}`;
+      const filePath = `${user?.id}/${fileName}`;
+
+      // Upload to Supabase
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, arrayBuffer, {
+          contentType: `image/${fileExt}`,
+          upsert: true
+        });
+
+      if (error) throw error;
+
+      // Return just the path, not the full URL
+      return filePath;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const pickImage = async () => {
     try {
@@ -39,12 +78,22 @@ export default function EditProfileScreen() {
 
       if (!result.canceled) {
         setIsLoading(true);
-        await updateProfile({ avatar_url: result.assets[0].uri });
-        setIsLoading(false);
+        const uri = result.assets[0].uri;
+        const avatarPath = await uploadImage(uri);
+        
+        if (avatarPath) {
+          await updateProfile({ avatar_url: avatarPath });
+          await refreshUser();
+          Alert.alert('Success', 'Profile picture updated successfully!');
+        } else {
+          Alert.alert('Error', 'Failed to upload image. Please try again.');
+        }
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to update profile picture');
+      Alert.alert('Error', 'Failed to update profile picture. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -57,19 +106,19 @@ export default function EditProfileScreen() {
     try {
       setIsLoading(true);
       await updateProfile({ handle: handle.trim() });
-      Alert.alert('Success', 'Profile updated successfully', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      await refreshUser();
+      Alert.alert('Success', 'Profile updated successfully!');
+      router.back();
     } catch (error) {
       console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile');
+      Alert.alert('Error', 'Failed to update profile. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <>
+    <SafeAreaView className="flex-1 bg-white">
       <Stack.Screen 
         options={{
           title: 'Edit Profile',
@@ -88,31 +137,33 @@ export default function EditProfileScreen() {
           ),
         }} 
       />
-      <View className="flex-1 bg-white">
+      <View className="flex-1">
         {/* Content */}
         <View className="flex-1">
           {/* Profile Picture Section */}
           <View className="items-center py-8 border-b border-gray-200">
             <TouchableOpacity 
               onPress={pickImage}
-              disabled={isLoading}
+              disabled={isLoading || isUploadingImage}
               className="relative"
             >
-              {avatarUrl ? (
-                <Image
-                  source={{ uri: avatarUrl }}
-                  className="w-32 h-32 rounded-full border-4 border-blue-500"
-                />
-              ) : (
-                <View className="w-32 h-32 rounded-full bg-blue-100 items-center justify-center border-4 border-blue-500">
-                  <MaterialIcons name="person" size={50} color="#1B75BA" />
-                </View>
-              )}
+              <ProfileAvatar 
+                avatarPath={profile?.avatar_url}
+                size={128}
+                fallbackText={profile?.handle || 'F'}
+              />
               <View className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2 border-2 border-white">
                 <MaterialIcons name="camera-alt" size={20} color="white" />
               </View>
+              {(isLoading || isUploadingImage) && (
+                <View className="absolute inset-0 bg-black bg-opacity-50 rounded-full items-center justify-center">
+                  <ActivityIndicator color="white" />
+                </View>
+              )}
             </TouchableOpacity>
-            <Text className="text-blue-500 font-medium mt-4">Change Profile Picture</Text>
+            <Text className="text-blue-500 font-medium mt-4">
+              {isUploadingImage ? 'Uploading...' : 'Change Profile Picture'}
+            </Text>
           </View>
 
           {/* Handle Section */}
@@ -139,6 +190,6 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </View>
-    </>
+    </SafeAreaView>
   );
 }
