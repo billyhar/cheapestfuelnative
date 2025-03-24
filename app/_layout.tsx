@@ -3,12 +3,13 @@ import { Stack, useRouter, useSegments, useLocalSearchParams } from 'expo-router
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AuthProvider } from '../contexts/AuthProvider';
+import { DarkModeProvider, useDarkModeContext } from '../contexts/DarkModeContext';
 import { useAuth } from '../contexts/AuthContext';
 import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import "../global.css";
 
@@ -22,6 +23,7 @@ SplashScreen.preventAutoHideAsync();
 const RootLayoutNav = () => {
   const { user, isLoading, profile } = useAuth();
   const colorScheme = useColorScheme();
+  const { isDarkMode } = useDarkModeContext();
   const segments = useSegments();
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -181,75 +183,90 @@ const RootLayoutNav = () => {
   return (
     <GestureHandlerRootView style={styles.container}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack 
-          screenOptions={{ 
-            headerShown: false,
-            gestureEnabled: false // Disable swipe back gesture
-          }}
-        >
-          <Stack.Screen 
-            name="auth" 
-            options={{ 
+        <View className={`flex-1 ${isDarkMode ? 'bg-background-dark' : 'bg-background'}`}>
+          <Stack 
+            screenOptions={{ 
               headerShown: false,
-              animation: 'none',
-              gestureEnabled: false
-            }} 
-          />
-          <Stack.Screen 
-            name="auth/callback" 
-            options={{ 
-              headerShown: false,
-              animation: 'none',
-              gestureEnabled: false
-            }} 
-          />
-          <Stack.Screen 
-            name="auth/handle" 
-            options={{ 
-              headerShown: false,
-              animation: 'none',
-              gestureEnabled: false
-            }} 
-          />
-          <Stack.Screen 
-            name="auth/profile-picture" 
-            options={{ 
-              headerShown: false,
-              animation: 'none',
-              gestureEnabled: false
-            }} 
-          />
-          <Stack.Screen 
-            name="auth/edit-profile" 
-            options={{ 
-              headerShown: false,
-              animation: 'slide_from_right',
-              gestureEnabled: true
-            }} 
-          />
-          <Stack.Screen 
-            name="(tabs)" 
-            options={{ 
-              headerShown: false,
-              animation: 'none',
-              gestureEnabled: false
-            }} 
-          />
-          <Stack.Screen 
-            name="(modals)/station-details" 
-            options={{ 
-              presentation: 'modal',
-              animation: 'slide_from_bottom',
-              gestureEnabled: true,
-              headerShown: false,
+              gestureEnabled: false,
               contentStyle: {
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                backgroundColor: isDarkMode ? '#000000' : '#FFFFFF',
               },
-            }} 
-          />
-        </Stack>
+            }}
+          >
+            <Stack.Screen 
+              name="auth" 
+              options={{ 
+                headerShown: false,
+                animation: 'none',
+                gestureEnabled: false
+              }} 
+            />
+            <Stack.Screen 
+              name="auth/callback" 
+              options={{ 
+                headerShown: false,
+                animation: 'none',
+                gestureEnabled: false
+              }} 
+            />
+            <Stack.Screen 
+              name="auth/handle" 
+              options={{ 
+                headerShown: false,
+                animation: 'none',
+                gestureEnabled: false
+              }} 
+            />
+            <Stack.Screen 
+              name="auth/profile-picture" 
+              options={{ 
+                headerShown: false,
+                animation: 'none',
+                gestureEnabled: false
+              }} 
+            />
+            <Stack.Screen 
+              name="auth/edit-profile" 
+              options={{ 
+                headerShown: false,
+                animation: 'slide_from_right',
+                gestureEnabled: true
+              }} 
+            />
+            <Stack.Screen 
+              name="(tabs)" 
+              options={{ 
+                headerShown: false,
+                animation: 'none',
+                gestureEnabled: false
+              }} 
+            />
+            <Stack.Screen 
+              name="(modals)/station-details" 
+              options={{ 
+                presentation: 'modal',
+                animation: 'slide_from_bottom',
+                gestureEnabled: true,
+                headerShown: false,
+                contentStyle: {
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                },
+              }} 
+            />
+          </Stack>
+        </View>
       </ThemeProvider>
     </GestureHandlerRootView>
+  );
+};
+
+const RootLayout = () => {
+  return (
+    <DarkModeProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </DarkModeProvider>
   );
 };
 
@@ -259,15 +276,4 @@ const styles = StyleSheet.create({
   },
 });
 
-const RootLayout = () => {
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <RootLayoutNav />
-      </AuthProvider>
-    </GestureHandlerRootView>
-  );
-};
-
-RootLayout.displayName = 'RootLayout';
 export default RootLayout;

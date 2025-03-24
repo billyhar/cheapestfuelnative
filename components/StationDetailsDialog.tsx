@@ -138,6 +138,25 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
         setIsFavorite(false);
         setFavoriteId(null);
       } else {
+        // First check if the station is already favorited
+        const { data: existingFavorite, error: checkError } = await supabase
+          .from('favorite_stations')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('station_id', station.site_id)
+          .single();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          throw checkError;
+        }
+
+        if (existingFavorite) {
+          // If it exists, just update the favorite state
+          setIsFavorite(true);
+          setFavoriteId(existingFavorite.id);
+          return;
+        }
+
         // Convert the date to ISO format if it's in DD/MM/YYYY format
         let lastUpdated = station.last_updated;
         if (lastUpdated && lastUpdated.includes('/')) {
