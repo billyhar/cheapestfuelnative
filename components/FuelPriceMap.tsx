@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import FuelTypeFilter from './FuelTypeFilter';
 import PriceLegend from './PriceLegend';
+import RecoveryButton from './RecoveryTools';
 
 // Initialize Mapbox
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
@@ -428,6 +429,9 @@ const FuelPriceMap: React.FC = () => {
           <Text style={styles.loadingText}>Loading fuel prices ⛽️</Text>
         </View>
       )}
+      
+      {/* Recovery Button (hidden until triple-tapped) */}
+      <RecoveryButton />
     </SafeAreaView>
   );
 };

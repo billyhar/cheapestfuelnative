@@ -1,4 +1,4 @@
-import { StyleSheet, View, SafeAreaView, RefreshControl, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, SafeAreaView, RefreshControl, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { AppTheme } from '../../constants/BrandAssets';
 import FuelStatsCards from '../../components/FuelStatsCards';
 import { useState, useEffect, useCallback } from 'react';
@@ -7,6 +7,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { ensureSupabaseInitialized } from '../../lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, '(tabs)'>;
 
@@ -14,6 +15,7 @@ export default function StatsScreen({ navigation }: Props) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
     fuelStations: [] as FuelStation[],
     cheapestUK: {
@@ -36,8 +38,22 @@ export default function StatsScreen({ navigation }: Props) {
     }[],
   });
 
+  // Initialize Supabase when component mounts
   useEffect(() => {
-    fetchStats();
+    const initSupabase = async () => {
+      try {
+        console.log('[Stats] Initializing Supabase...');
+        await ensureSupabaseInitialized();
+        console.log('[Stats] Supabase initialized successfully');
+        fetchStats();
+      } catch (error) {
+        console.error('[Stats] Failed to initialize Supabase:', error);
+        setError('Failed to initialize. Please try again');
+        setIsLoading(false);
+      }
+    };
+    
+    initSupabase();
   }, []);
 
   const onRefresh = useCallback(() => {
@@ -48,8 +64,12 @@ export default function StatsScreen({ navigation }: Props) {
   const fetchStats = async () => {
     try {
       setIsLoading(true);
+      setError(null);
+      
+      console.log('[Stats] Fetching fuel prices...');
       const service = FuelPriceService.getInstance();
       const stations = await service.fetchFuelPrices();
+      console.log(`[Stats] Successfully fetched ${stations.length} stations`);
 
       // Calculate statistics
       const cityMap = new Map<string, { E10: number[], B7: number[] }>();
@@ -208,7 +228,8 @@ export default function StatsScreen({ navigation }: Props) {
         cityPrices,
       });
     } catch (error) {
-      console.error('Error fetching fuel prices:', error);
+      console.error('[Stats] Error fetching fuel prices:', error);
+      setError('Failed to load fuel prices. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -220,6 +241,25 @@ export default function StatsScreen({ navigation }: Props) {
       params: { station: JSON.stringify(station) }
     });
   };
+
+  const retryFetch = () => {
+    setError(null);
+    fetchStats();
+  };
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="dark" />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={retryFetch}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -255,5 +295,28 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: AppTheme.colors.error || 'red',
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: AppTheme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

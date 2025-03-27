@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { supabase, ensureSupabaseInitialized } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Super simple callback screen - no more complexity
@@ -11,10 +11,8 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Execute once
     const exchangeCode = async () => {
       try {
-        // Get code from params
         const code = params?.code as string;
         
         if (!code) {
@@ -23,32 +21,54 @@ export default function AuthCallback() {
           return;
         }
         
-        console.log('Exchanging code:', code);
-        // Exchange code for session - this is all we need to do here
-        // The onAuthStateChange listener in AuthProvider handles everything else
+        console.log('[Auth Callback] Starting code exchange process...');
+        
+        // Mark that we're in callback process
+        await AsyncStorage.setItem('auth_callback_in_progress', 'true');
+        
+        // First ensure Supabase is initialized
+        const initialized = await ensureSupabaseInitialized();
+        if (!initialized) {
+          throw new Error('Failed to initialize Supabase');
+        }
+        
+        // Exchange code for session
         await supabase.auth.exchangeCodeForSession(code);
+        console.log('[Auth Callback] Code exchange complete');
         
-        // Let the auth state change in AuthProvider handle navigation
-        console.log('Code exchange complete, auth state change will handle navigation');
+        // Wait a moment for session to be fully established
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Mark force navigation flag to help Root Layout navigate
-        await AsyncStorage.setItem('force_navigation', 'true');
+        // Verify session is active
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+          throw new Error('Session verification failed after code exchange');
+        }
         
-        // Safety net: Force navigation after 2 seconds if nothing else works
-        setTimeout(async () => {
-          console.log('SAFETY NET: Forcing navigation to tabs after timeout');
-          // Double-check session before navigating
-          const { data } = await supabase.auth.getSession();
-          if (data.session) {
-            // Force immediate navigation to tabs
-            router.replace('/(tabs)');
-          } else {
-            router.replace('/auth');
-          }
-        }, 2000);
+        console.log('[Auth Callback] Session verified:', !!session);
+        
+        // Set flags for navigation
+        await Promise.all([
+          AsyncStorage.setItem('force_navigation', 'true'),
+          AsyncStorage.setItem('initial_login', 'true')
+        ]);
+        
+        // Clear callback flag
+        await AsyncStorage.removeItem('auth_callback_in_progress');
+        
+        // Navigate to tabs
+        router.replace('/(tabs)');
       } catch (err) {
-        console.error('Auth error:', err);
+        console.error('[Auth Callback] Error:', err);
         setError(err instanceof Error ? err.message : 'Authentication failed');
+        
+        // Clear flags
+        await Promise.all([
+          AsyncStorage.removeItem('auth_callback_in_progress'),
+          AsyncStorage.removeItem('force_navigation'),
+          AsyncStorage.removeItem('initial_login')
+        ]);
+        
         setTimeout(() => router.replace('/auth'), 1000);
       }
     };
