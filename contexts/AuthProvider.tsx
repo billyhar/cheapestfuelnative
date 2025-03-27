@@ -216,97 +216,15 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
           if (event === 'SIGNED_IN') {
             console.log('🔐 SIGNED_IN detected, ensuring profile exists immediately');
             
-            // Check if profile exists
-            const { data: existingProfile, error: checkError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .maybeSingle();
-              
-            console.log('🔐 Profile check result:', existingProfile?.handle || 'not found');
-              
-            // Create profile if it doesn't exist or has null handle
-            if (!existingProfile || !existingProfile.handle) {
-              console.log('🔐 Profile missing or has no handle, creating now');
-              
-              // Generate handle
-              const baseHandle = 'fueler';
-              const randomNum = Math.floor(1000 + Math.random() * 9000);
-              const handle = `${baseHandle}${randomNum}`;
-              
-              console.log('🔐 Generated handle:', handle);
-              
-              // If profile exists but has no handle, update it
-              if (existingProfile) {
-                console.log('🔐 Updating existing profile with handle');
-                const { data: updatedProfile, error: updateError } = await supabase
-                  .from('profiles')
-                  .update({ 
-                    handle: handle,
-                    is_handle_auto_generated: true,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', session.user.id)
-                  .select()
-                  .single();
-                  
-                if (updateError) {
-                  console.error('🔐 Error updating profile with handle:', updateError);
-                } else {
-                  console.log('🔐 Successfully updated profile with handle:', updatedProfile);
-                  setProfile(updatedProfile);
-                }
-              } else {
-                // Create new profile with handle
-                console.log('🔐 Creating brand new profile with handle');
-                const { data: newProfile, error: insertError } = await supabase
-                  .from('profiles')
-                  .insert({
-                    id: session.user.id,
-                    handle: handle,
-                    is_handle_auto_generated: true,
-                    updated_at: new Date().toISOString()
-                  })
-                  .select()
-                  .single();
-                  
-                if (insertError) {
-                  console.error('🔐 Error creating profile with handle:', insertError);
-                  
-                  // Fallback - try insert without returning
-                  console.log('🔐 Trying fallback profile creation');
-                  await supabase
-                    .from('profiles')
-                    .insert({
-                      id: session.user.id,
-                      handle: handle,
-                      is_handle_auto_generated: true,
-                      updated_at: new Date().toISOString()
-                    });
-                    
-                  // Verify by fetching separately
-                  const { data: verifiedProfile } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .single();
-                    
-                  if (verifiedProfile) {
-                    console.log('🔐 Verified fallback profile creation:', verifiedProfile);
-                    setProfile(verifiedProfile);
-                  }
-                } else if (newProfile) {
-                  console.log('🔐 Successfully created new profile with handle:', newProfile);
-                  setProfile(newProfile);
-                }
-              }
-            } else {
-              console.log('🔐 Profile with handle already exists:', existingProfile);
-              setProfile(existingProfile);
-            }
-            
-            // Flag initial login
+            // Set initial login flag before any profile operations
             await AsyncStorage.setItem('initial_login', 'true');
+            
+            // Use refreshUser which has built-in retry and race condition handling
+            await refreshUser();
+            
+            // Clear initial login flag after successful refresh
+            await AsyncStorage.removeItem('initial_login');
+            return;
           } else {
             // For other events just use the standard refresh
             await refreshUser();
@@ -332,7 +250,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         await Promise.all([
           AsyncStorage.removeItem('isNewUser'),
           AsyncStorage.removeItem('isProfileSetupMode'),
-          AsyncStorage.removeItem('profile')
+          AsyncStorage.removeItem('profile'),
+          AsyncStorage.removeItem('initial_login')
         ]);
       }
     });
@@ -573,6 +492,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       
       if (sessionError) {
         console.error('Error getting session during refresh:', sessionError);
+        setIsLoading(false);
         return;
       }
       
@@ -580,6 +500,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         console.log('↻ No active session during refresh, clearing user data');
         setUser(null);
         setProfile(null);
+        setIsLoading(false);
         return;
       }
       
@@ -619,20 +540,24 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
             
             if (createError) {
               console.error('↻ Error creating profile during initial login:', createError);
+              setIsLoading(false);
+              return;
             } else if (newProfiles && newProfiles.length > 0) {
               console.log('↻ Profile created successfully during initial login');
               setProfile(newProfiles[0]);
               
               // Clear initial login flag after successful profile creation
               await AsyncStorage.removeItem('initial_login');
+              setIsLoading(false);
               return; // Exit early as we've already set the profile
             }
-        } else if (existingProfiles.length > 0) {
+        } else {
           console.log('↻ Found existing profile during initial login refresh');
           setProfile(existingProfiles[0]);
           
           // Clear initial login flag after successful profile retrieval
           await AsyncStorage.removeItem('initial_login');
+          setIsLoading(false);
           return; // Exit early as we've already set the profile
         }
       }
@@ -709,6 +634,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
               
               if (!profile && createAttempts >= 3) {
                 console.error('↻ Failed to create profile after multiple attempts');
+                setIsLoading(false);
+                return;
               }
             } else {
               console.error('↻ Error fetching profile:', error);
@@ -743,8 +670,10 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     } catch (error) {
       console.error('Error in refreshUser:', error);
     } finally {
-      // Clear flag when done
-      isRefreshingUserRef.current = false;
+      // Only clear loading if we have a profile or if there was an error
+      if (profile || !session?.user) {
+        setIsLoading(false);
+      }
     }
   };
 

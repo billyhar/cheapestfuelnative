@@ -25,7 +25,8 @@ Deno.serve(async () => {
         url: 'https://api.sainsburys.co.uk/v1/exports/latest/fuel_prices_data.json',
         brand: 'Sainsburys',
         transform: (data: any): FuelPrice[] => {
-          return data.stations?.map((station: any) => ({
+          console.log(`Processing Sainsburys data: ${JSON.stringify(data).slice(0, 200)}...`);
+          const stations = data.stations?.map((station: any) => ({
             site_id: `sainsburys-${station.site_id}`,
             brand: 'Sainsburys',
             e10_price: station.prices?.E10 || null,
@@ -33,6 +34,8 @@ Deno.serve(async () => {
             e5_price: station.prices?.E5 || null,
             sdv_price: station.prices?.SDV || null
           })) || [];
+          console.log(`Found ${stations.length} Sainsburys stations`);
+          return stations;
         }
       },
       {
@@ -146,6 +149,51 @@ Deno.serve(async () => {
             sdv_price: station.prices?.SDV || null
           })) || [];
         }
+      },
+      {
+        url: 'https://www.bp.com/en_gb/united-kingdom/home/fuelprices/fuel_prices_data.json',
+        brand: 'BP',
+        transform: (data: any): FuelPrice[] => {
+          return data.stations?.map((station: any) => ({
+            site_id: `bp-${station.site_id}`,
+            brand: 'BP',
+            e10_price: station.prices?.E10 || null,
+            b7_price: station.prices?.B7 || null,
+            e5_price: station.prices?.E5 || null,
+            sdv_price: station.prices?.SDV || null
+          })) || [];
+        }
+      },
+      {
+        url: 'https://www.morrisons.com/fuel-prices/fuel.json',
+        brand: 'Morrisons',
+        transform: (data: any): FuelPrice[] => {
+          return data.stations?.map((station: any) => ({
+            site_id: `morrisons-${station.site_id}`,
+            brand: 'Morrisons',
+            e10_price: station.prices?.E10 || null,
+            b7_price: station.prices?.B7 || null,
+            e5_price: station.prices?.E5 || null,
+            sdv_price: station.prices?.SDV || null
+          })) || [];
+        }
+      },
+      {
+        url: 'https://storelocator.asda.com/fuel_prices_data.json',
+        brand: 'ASDA',
+        transform: (data: any): FuelPrice[] => {
+          console.log(`Processing ASDA data: ${JSON.stringify(data).slice(0, 200)}...`);
+          const stations = data.stations?.map((station: any) => ({
+            site_id: `asda-${station.site_id}`,
+            brand: 'ASDA',
+            e10_price: station.prices?.E10 || null,
+            b7_price: station.prices?.B7 || null,
+            e5_price: station.prices?.E5 || null,
+            sdv_price: station.prices?.SDV || null
+          })) || [];
+          console.log(`Found ${stations.length} ASDA stations`);
+          return stations;
+        }
       }
     ];
     
@@ -154,14 +202,29 @@ Deno.serve(async () => {
     
     for (const api of apiEndpoints) {
       try {
-        const response = await fetch(api.url);
+        console.log(`Fetching from ${api.brand}...`);
+        const response = await fetch(api.url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; CheapestFuelBot/1.0; +https://cheapestfuel.app)',
+            'Accept': 'application/json'
+          },
+          timeout: 10000 // 10 second timeout
+        });
+        
         if (!response.ok) {
           console.error(`API error: ${response.status} from ${api.url}`);
           continue;
         }
+        
         const data = await response.json();
+        if (!data || !data.stations) {
+          console.error(`Invalid data format from ${api.url}`);
+          continue;
+        }
+        
         const prices = api.transform(data);
         allFuelPrices = [...allFuelPrices, ...prices];
+        console.log(`Successfully processed ${prices.length} stations from ${api.brand}`);
       } catch (apiError) {
         console.error(`Failed to fetch from ${api.url}:`, apiError);
         // Continue with other APIs if one fails
