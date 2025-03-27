@@ -6,10 +6,12 @@ import { FuelPriceService, FuelStation } from '../../services/FuelPriceService';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 
 type Props = NativeStackScreenProps<RootStackParamList, '(tabs)'>;
 
 export default function StatsScreen({ navigation }: Props) {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -20,6 +22,7 @@ export default function StatsScreen({ navigation }: Props) {
       location: '',
       fuelType: 'E10' as 'E10' | 'B7',
       stationData: null as FuelStation | null,
+      lastUpdated: new Date(),
     },
     averagePrice: {
       E10: 0,
@@ -29,6 +32,7 @@ export default function StatsScreen({ navigation }: Props) {
       city: string;
       cheapestE10: number;
       cheapestB7: number;
+      lastUpdated: Date;
     }[],
   });
 
@@ -183,6 +187,7 @@ export default function StatsScreen({ navigation }: Props) {
           city,
           cheapestE10: prices.E10.length > 0 ? Math.min(...prices.E10) : 0,
           cheapestB7: prices.B7.length > 0 ? Math.min(...prices.B7) : 0,
+          lastUpdated: new Date(),
         }))
         .filter(city => city.cheapestE10 > 0 || city.cheapestB7 > 0);
       
@@ -194,6 +199,7 @@ export default function StatsScreen({ navigation }: Props) {
           location: cheapestStation ? cheapestStation.address : '',
           fuelType: cheapestFuelType,
           stationData: cheapestStation,
+          lastUpdated: new Date(cheapestStation?.last_updated || new Date()),
         },
         averagePrice: {
           E10: countE10 > 0 ? Math.round(totalE10 / countE10) : 0,
@@ -209,15 +215,10 @@ export default function StatsScreen({ navigation }: Props) {
   };
 
   const handleStationSelect = (station: FuelStation) => {
-    if (navigation) {
-      navigation.navigate('Map', {
-        selectedStation: station,
-        centerOn: {
-          latitude: station.location.latitude,
-          longitude: station.location.longitude
-        }
-      });
-    }
+    router.push({
+      pathname: '/(modals)/station-details',
+      params: { station: JSON.stringify(station) }
+    });
   };
 
   return (

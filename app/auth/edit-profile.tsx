@@ -12,15 +12,20 @@ import { ProfileAvatar } from '@/components/ProfileAvatar';
 
 export default function EditProfileScreen() {
   const { user, profile, updateProfile, refreshUser } = useAuth();
-  const [handle, setHandle] = useState(profile?.handle || '');
+  const [handle, setHandle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
+  // Set initial handle value only on mount
   useEffect(() => {
     if (profile?.handle) {
       setHandle(profile.handle);
     }
+  }, []); // Empty dependency array means this only runs once on mount
+
+  // Update hasChanges whenever handle changes
+  useEffect(() => {
     setHasChanges(handle !== profile?.handle);
   }, [handle, profile?.handle]);
 
