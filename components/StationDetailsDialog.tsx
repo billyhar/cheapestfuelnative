@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Image, Platform, Linking, Alert, ActionSh
 import { Ionicons } from '@expo/vector-icons';
 import { FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
-import PriceHistoryWrapper from './PriceHistoryWrapper';
+import { PriceHistoryGraph } from '../app/components/PriceHistoryGraph';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import UpvoteButton from './UpvoteButton';
@@ -392,10 +392,10 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
             />
           </View>
 
-          {/* Price History Graph */}
-          <PriceHistoryWrapper 
+          {/* Price History Section */}
+          <PriceHistoryGraph 
             siteId={station.site_id} 
-            fuelType={selectedFuelType.toLowerCase() as 'e10' | 'b7'} 
+            fuelType={selectedFuelType.toLowerCase() as 'e10' | 'b7' | 'e5' | 'sdv'} 
           />
 
           {/* Last Updated */}

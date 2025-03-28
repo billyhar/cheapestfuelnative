@@ -102,6 +102,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Nearby',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="location" size={size} color={color} />
           ),

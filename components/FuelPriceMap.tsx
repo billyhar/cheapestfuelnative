@@ -370,7 +370,7 @@ const FuelPriceMap: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container]}>
       <Mapbox.MapView
         ref={mapRef}
         style={styles.map}
@@ -395,7 +395,9 @@ const FuelPriceMap: React.FC = () => {
       </Mapbox.MapView>
 
       {/* Price Legend */}
-      <PriceLegend />
+      <View className="absolute top-12 right-4">
+        <PriceLegend />
+      </View>
 
       {/* Bottom Controls Container */}
       <View className="absolute bottom-8 left-4 right-4 flex-row items-center justify-center space-x-4">
@@ -432,7 +434,7 @@ const FuelPriceMap: React.FC = () => {
       
       {/* Recovery Button (hidden until triple-tapped) */}
       <RecoveryButton />
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -267,7 +267,9 @@ const RootLayoutNav = () => {
               options={{ 
                 headerShown: false,
                 animation: 'none',
-                gestureEnabled: false
+                gestureEnabled: false,
+                statusBarTranslucent: true,
+                statusBarStyle: 'light',
               }} 
             />
             <Stack.Screen 
