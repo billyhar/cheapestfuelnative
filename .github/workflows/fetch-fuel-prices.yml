@@ -3,7 +3,8 @@ name: Fetch Fuel Prices Daily
 on:
   schedule:
     # Runs at 12:00 UTC every day
-    - cron: '50 12 * * *'
+    - cron: '*/5 * * * *'  # Every 5 minutes
+
 
 jobs:
   fetch-fuel-prices:
