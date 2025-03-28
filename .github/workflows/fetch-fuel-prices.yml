@@ -3,9 +3,7 @@ name: Fetch Fuel Prices Daily
 on:
   schedule:
     # Runs at 12:00 UTC every day
-    - cron: '30 12 * * *'
-  # Allows manual trigger from GitHub Actions tab
-  workflow_dispatch:
+    - cron: '40 12 * * *'
 
 jobs:
   fetch-fuel-prices:
