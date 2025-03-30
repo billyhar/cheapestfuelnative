@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   schedule:
     # Runs every 24 hours at the same time it was first triggered
-    - cron: '0 12 * * *'  # Will trigger at midday UTC, but will repeat every 24 hours from the first invocation
+    - cron: '25 13 * * *'  # Will trigger at midday UTC, but will repeat every 24 hours from the first invocation
 
 jobs:
   fetch-fuel-prices:
