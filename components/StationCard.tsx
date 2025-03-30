@@ -133,16 +133,16 @@ const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isF
               <View className="items-end">
                 {station.prices.E10 && (
                   <View className="items-end mb-1">
-                    <Text className="text-xs text-gray-500">Petrol</Text>
-                    <Text className="text-lg font-bold text-green-600">
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">Petrol</Text>
+                    <Text className="text-lg font-bold text-green-700 dark:text-green-500">
                       £{(station.prices.E10 / 100).toFixed(2)}
                     </Text>
                   </View>
                 )}
                 {station.prices.B7 && (
                   <View className="items-end">
-                    <Text className="text-xs text-gray-500">Diesel</Text>
-                    <Text className="text-lg font-bold text-gray-900">
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">Diesel</Text>
+                    <Text className="text-lg font-bold text-gray-900 dark:text-white">
                       £{(station.prices.B7 / 100).toFixed(2)}
                     </Text>
                   </View>
@@ -150,15 +150,15 @@ const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isF
               </View>
             </View>
             <View className="flex-row justify-between items-center mt-4">
-              <Text className="text-xs text-gray-400 dark:text-gray-500">
+              <Text className="text-xs text-gray-600 dark:text-gray-300">
                 Last updated: {new Date(station.last_updated).toLocaleString()}
               </Text>
               <TouchableOpacity
                 onPress={openMapsApp}
-                className="flex-row items-center bg-blue-50 dark:bg-gray-700 px-3 py-1 rounded-full"
+                className="flex-row items-center bg-red-50 dark:bg-red-900/20 px-3 py-1 rounded-full"
               >
                 <Ionicons name="navigate-outline" size={16} color={AppTheme.colors.primary} />
-                <Text className="text-sm text-primary ml-1">Directions</Text>
+                <Text className="text-sm text-primary dark:text-primary ml-1">Directions</Text>
               </TouchableOpacity>
             </View>
           </View>

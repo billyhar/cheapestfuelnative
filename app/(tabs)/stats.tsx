@@ -1,4 +1,4 @@
-import { StyleSheet, View, SafeAreaView, RefreshControl, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, SafeAreaView, RefreshControl, ActivityIndicator, Text, TouchableOpacity, useColorScheme } from 'react-native';
 import { AppTheme } from '../../constants/BrandAssets';
 import FuelStatsCards from '../../components/FuelStatsCards';
 import { useState, useEffect, useCallback } from 'react';
@@ -13,6 +13,7 @@ type Props = NativeStackScreenProps<RootStackParamList, '(tabs)'>;
 
 export default function StatsScreen({ navigation }: Props) {
   const router = useRouter();
+  const colorScheme = useColorScheme();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,10 +250,16 @@ export default function StatsScreen({ navigation }: Props) {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar style="dark" />
+      <SafeAreaView style={[
+        styles.container,
+        colorScheme === 'dark' && styles.containerDark
+      ]}>
+        <StatusBar style={colorScheme === 'dark' ? "light" : "dark"} />
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={[
+            styles.errorText,
+            colorScheme === 'dark' && styles.textDark
+          ]}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={retryFetch}>
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
@@ -262,22 +269,29 @@ export default function StatsScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[
+      styles.container,
+      colorScheme === 'dark' && styles.containerDark
+    ]}>
+      <StatusBar style={colorScheme === 'dark' ? "light" : "dark"} />
       {isLoading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={AppTheme.colors.primary} />
+        <View style={[
+          styles.loadingContainer,
+          colorScheme === 'dark' && styles.containerDark
+        ]}>
+          <ActivityIndicator size="large" color={colorScheme === 'dark' ? '#60A5FA' : AppTheme.colors.primary} />
         </View>
       ) : (
         <FuelStatsCards 
           stats={stats} 
           onStationSelect={handleStationSelect}
+          colorScheme={colorScheme}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[AppTheme.colors.primary]}
-              tintColor={AppTheme.colors.primary}
+              colors={[colorScheme === 'dark' ? '#60A5FA' : AppTheme.colors.primary]}
+              tintColor={colorScheme === 'dark' ? '#60A5FA' : AppTheme.colors.primary}
             />
           }
         />
@@ -290,6 +304,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppTheme.colors.background,
+  },
+  containerDark: {
+    backgroundColor: '#1F2937',
   },
   loadingContainer: {
     flex: 1,
@@ -307,6 +324,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
     textAlign: 'center',
+  },
+  textDark: {
+    color: '#F3F4F6',
   },
   retryButton: {
     backgroundColor: AppTheme.colors.primary,

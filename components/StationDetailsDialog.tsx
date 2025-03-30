@@ -129,14 +129,17 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
     }
 
     try {
-      if (isFavorite && favoriteId) {
+      // Optimistically update the UI state first
+      const newFavoriteState = !isFavorite;
+      setIsFavorite(newFavoriteState);
+
+      if (!newFavoriteState && favoriteId) {
         const { error } = await supabase
           .from('favorite_stations')
           .delete()
           .eq('id', favoriteId);
 
         if (error) throw error;
-        setIsFavorite(false);
         setFavoriteId(null);
       } else {
         // First check if the station is already favorited
@@ -152,8 +155,6 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
         }
 
         if (existingFavorite) {
-          // If it exists, just update the favorite state
-          setIsFavorite(true);
           setFavoriteId(existingFavorite.id);
           return;
         }
@@ -167,7 +168,8 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           lastUpdated = new Date(+year, +month - 1, +day, +hours, +minutes, +seconds).toISOString();
         }
 
-        const { data, error } = await supabase
+        // Add new favorite
+        const { data: newFavorite, error: insertError } = await supabase
           .from('favorite_stations')
           .insert([
             {
@@ -186,11 +188,12 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           .select()
           .single();
 
-        if (error) throw error;
-        setIsFavorite(true);
-        setFavoriteId(data.id);
+        if (insertError) throw insertError;
+        if (newFavorite) setFavoriteId(newFavorite.id);
       }
     } catch (error) {
+      // Revert optimistic update on error
+      setIsFavorite(!isFavorite);
       console.error('Error toggling favorite:', error);
       Alert.alert(
         'Error',

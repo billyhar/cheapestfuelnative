@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, Modal, Pressable, StyleSheet, RefreshControl, Linking } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, Modal, Pressable, StyleSheet, RefreshControl, Linking, ColorSchemeName } from 'react-native';
 import { FuelStation } from '../services/FuelPriceService';
 import { BrandLogos, AppTheme } from '../constants/BrandAssets';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +31,7 @@ interface FuelStatsCardsProps {
   stats: FuelStats;
   onStationSelect: (station: FuelStation) => void;
   refreshControl?: React.ReactElement;
+  colorScheme?: ColorSchemeName;
 }
 
 type CheapestStation = {
@@ -46,7 +47,7 @@ const formatPrice = (price: number): string => {
   return `£${(price / 100).toFixed(2)}`;
 };
 
-const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect, refreshControl }) => {
+const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect, refreshControl, colorScheme }) => {
   const [selectedFuelType, setSelectedFuelType] = useState<'E10' | 'B7'>('E10');
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<{
@@ -208,81 +209,65 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
 
   return (
     <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      className={`flex-1 ${colorScheme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}
+      contentContainerClassName="p-4 pb-8"
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
       onScrollBeginDrag={() => setIsPulling(true)}
       onScrollEndDrag={() => setIsPulling(false)}
     >
       {isPulling && (
-        <Text style={styles.lastUpdatedText}>
+        <Text className="text-xs text-center mb-2 text-gray-500 dark:text-gray-400">
           Last updated {formatTimeAgo(lastUpdated)}
         </Text>
       )}
 
       {/* Fuel Type Selector */}
-      <View style={styles.fuelTypeContainer}>
-        <TouchableOpacity 
-          style={[styles.fuelTypeButton, selectedFuelType === 'E10' && styles.selectedFuelType]}
-          onPress={() => setSelectedFuelType('E10')}
-        >
-          <Ionicons 
-            name="water-outline" 
-            size={18} 
-            color={selectedFuelType === 'E10' ? AppTheme.colors.primary : '#6B7280'} 
-          />
-          <Text style={[styles.fuelTypeText, selectedFuelType === 'E10' && styles.selectedFuelTypeText]}>
-            Petrol (E10)
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.fuelTypeButton, selectedFuelType === 'B7' && styles.selectedFuelType]}
-          onPress={() => setSelectedFuelType('B7')}
-        >
-          <Ionicons 
-            name="water" 
-            size={18} 
-            color={selectedFuelType === 'B7' ? AppTheme.colors.primary : '#6B7280'} 
-          />
-          <Text style={[styles.fuelTypeText, selectedFuelType === 'B7' && styles.selectedFuelTypeText]}>
-            Diesel (B7)
-          </Text>
-        </TouchableOpacity>
+      <View className="flex-row bg-white dark:bg-gray-800 rounded-xl p-1 mb-4 border border-gray-200 dark:border-gray-700">
+        {['E10', 'B7'].map(fuelType => (
+          <TouchableOpacity 
+            key={fuelType}
+            className={`flex-1 flex-row items-center justify-center py-3 rounded-lg ${
+              selectedFuelType === fuelType ? 'bg-red-50 dark:bg-red-900/60' : ''
+            }`}
+            onPress={() => setSelectedFuelType(fuelType as 'E10' | 'B7')}
+          >
+            <Ionicons 
+              name={fuelType === 'E10' ? "water-outline" : "water"} 
+              size={18} 
+              color={selectedFuelType === fuelType ? AppTheme.colors.primary : '#6B7280'} 
+            />
+            <Text className={`ml-2 font-semibold ${
+              selectedFuelType === fuelType 
+                ? 'text-red-600 dark:text-white' 
+                : 'text-gray-600 dark:text-gray-400'
+            }`}>
+              {fuelType === 'E10' ? 'Petrol (E10)' : 'Diesel (B7)'}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Nearby Stations Card */}
       {userLocation && (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Nearby Stations</Text>
-            <View style={styles.cardHeaderActions}>
-              {/* <TouchableOpacity 
-                style={styles.refreshButton}
-                onPress={async () => {
-                  const location = await Location.getCurrentPositionAsync({});
-                  setUserLocation({
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                  });
-                }}
-              >
-                <Ionicons name="refresh" size={20} color={AppTheme.colors.primary} />
-              </TouchableOpacity> */}
-              <View style={styles.radiusSelector}>
+        <View className="bg-white dark:bg-gray-800 rounded-xl p-4 mb-4 border border-gray-200 dark:border-gray-700">
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-lg font-bold text-gray-900 dark:text-white">
+              Nearby Stations
+            </Text>
+            <View className="flex-row items-center gap-2">
+              <View className="flex-row items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-md p-1">
                 {[2, 5, 10].map(radius => (
                   <TouchableOpacity
                     key={radius}
-                    style={[
-                      styles.radiusButton,
-                      selectedRadius === radius && styles.selectedRadiusButton
-                    ]}
+                    className={`px-2 py-1 rounded-md ${
+                      selectedRadius === radius ? 'bg-red-500' : ''
+                    }`}
                     onPress={() => setSelectedRadius(radius)}
                   >
-                    <Text style={[
-                      styles.radiusButtonText,
-                      selectedRadius === radius && styles.selectedRadiusButtonText
-                    ]}>
+                    <Text className={`text-sm font-semibold ${
+                      selectedRadius === radius ? 'text-white' : 'text-gray-600 dark:text-gray-400'
+                    }`}>
                       {radius}km
                     </Text>
                   </TouchableOpacity>
@@ -291,33 +276,37 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
             </View>
           </View>
 
-          {getNearbyStations().map((station, index) => (
+          {getNearbyStations().map((station) => (
             <TouchableOpacity
               key={station.site_id}
-              style={styles.nearbyStationItem}
+              className="flex-row items-center p-3 border-b border-gray-200 dark:border-gray-700"
               onPress={() => onStationSelect(station)}
             >
               <Image 
                 source={BrandLogos[station.brand] || require('../assets/default-fuel-logo.png')}
-                style={styles.nearbyStationLogo}
+                className="w-12 h-12 rounded-full mr-3 bg-gray-100 dark:bg-gray-700"
                 resizeMode="contain"
               />
-              <View style={styles.nearbyStationDetails}>
-                <Text style={styles.nearbyStationName}>{station.brand}</Text>
-                <Text style={styles.nearbyStationAddress} numberOfLines={1}>{station.address}</Text>
-                <Text style={styles.nearbyStationDistance}>
+              <View className="flex-1">
+                <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                  {station.brand}
+                </Text>
+                <Text className="text-sm text-gray-500 dark:text-gray-400" numberOfLines={1}>
+                  {station.address}
+                </Text>
+                <Text className="text-sm text-gray-500 dark:text-gray-400">
                   {station.distance.toFixed(1)}km away
                 </Text>
               </View>
-              <View style={styles.nearbyStationPrice}>
-                <Text style={styles.nearbyStationPriceValue}>
+              <View className="flex-row items-center gap-2">
+                <Text className="text-base font-semibold text-gray-900 dark:text-white">
                   {formatPrice(selectedFuelType === 'E10' ? station.prices.E10! : station.prices.B7!)}
                 </Text>
                 <TouchableOpacity 
-                  style={styles.directionsButtonSmall}
+                  className="p-2 rounded-md bg-gray-100 dark:bg-gray-700"
                   onPress={() => openDirections(station)}
                 >
-                  <Ionicons name="navigate" size={14} color="#FFFFFF" />
+                  <Ionicons name="navigate" size={16} color={AppTheme.colors.primary} />
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -326,14 +315,16 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
       )}
 
       {/* National Average Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>National Average</Text>
-        <View style={styles.averagePriceContainer}>
-          <View style={styles.averagePriceBox}>
-            <Text style={styles.averagePriceLabel}>
+      <View className="bg-white dark:bg-gray-800 rounded-xl p-4 mb-4 border border-gray-200 dark:border-gray-700">
+        <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+          National Average
+        </Text>
+        <View className="flex-row">
+          <View className="flex-1 items-center p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 mx-1">
+            <Text className="text-sm text-gray-500 dark:text-gray-400 mb-1">
               {selectedFuelType === 'E10' ? 'Petrol (E10)' : 'Diesel (B7)'}
             </Text>
-            <Text style={styles.averagePriceValue}>
+            <Text className="text-xl font-bold text-gray-900 dark:text-white">
               {formatPrice(selectedFuelType === 'E10' ? stats.averagePrice.E10 : stats.averagePrice.B7)}
             </Text>
           </View>
@@ -341,75 +332,85 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
       </View>
 
       {/* Top 50 Stations Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Top 50 Cheapest Stations</Text>
-        <View style={[styles.top50Container, !showAllTop50 && styles.top50ContainerCollapsed]}>
+      <View className="bg-white dark:bg-gray-800 rounded-xl p-4 mb-4 border border-gray-200 dark:border-gray-700">
+        <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+          Top 50 Cheapest Stations
+        </Text>
+        <View className={!showAllTop50 ? 'max-h-[500px] overflow-hidden relative' : ''}>
           {getTop50Stations().map((station, index) => (
             <TouchableOpacity
               key={station.site_id}
-              style={[
-                styles.top50Item,
-                index === 0 && styles.top50HeroItem
-              ]}
               onPress={() => onStationSelect(station)}
+              className={`${
+                index === 0 
+                  ? 'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 mb-2 p-4'
+                  : 'border-b border-gray-200 dark:border-gray-700 p-3'
+              }`}
             >
               {index === 0 ? (
-                <>
-                  <View style={styles.top50HeroContent}>
-                    <View style={styles.top50HeroHeader}>
-                      <View style={styles.top50HeroRank}>
-                        <Text style={styles.top50HeroRankText}>#1</Text>
-                      </View>
-                      <Image 
-                        source={BrandLogos[station.brand] || require('../assets/default-fuel-logo.png')}
-                        style={styles.top50HeroLogo}
-                        resizeMode="contain"
-                      />
-                      <View style={styles.top50HeroDetails}>
-                        <Text style={styles.top50HeroName}>{station.brand}</Text>
-                        <Text style={styles.top50HeroAddress} numberOfLines={1}>{station.address}</Text>
-                      </View>
+                <View className="w-full">
+                  <View className="flex-row items-center mb-4">
+                    <View className="w-10 h-10 rounded-full bg-red-600 items-center justify-center mr-3">
+                      <Text className="text-white font-bold">#1</Text>
                     </View>
-                    <View style={styles.top50HeroPrice}>
-                      <View style={styles.top50HeroPriceBox}>
-                        <Text style={styles.top50HeroPriceLabel}>Price</Text>
-                        <Text style={styles.top50HeroPriceValue}>
-                          {formatPrice(station.price)}
-                        </Text>
-                      </View>
+                    <Image 
+                      source={BrandLogos[station.brand] || require('../assets/default-fuel-logo.png')}
+                      className="w-12 h-12 rounded-full mr-3"
+                      resizeMode="contain"
+                    />
+                    <View className="flex-1">
+                      <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                        {station.brand}
+                      </Text>
+                      <Text className="text-sm text-gray-500 dark:text-gray-400" numberOfLines={1}>
+                        {station.address}
+                      </Text>
                     </View>
                   </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.top50Rank}>
-                    <Text style={styles.top50RankText}>#{index + 1}</Text>
-                  </View>
-                  <Image 
-                    source={BrandLogos[station.brand] || require('../assets/default-fuel-logo.png')}
-                    style={styles.top50Logo}
-                    resizeMode="contain"
-                  />
-                  <View style={styles.top50Details}>
-                    <Text style={styles.top50Name}>{station.brand}</Text>
-                    <Text style={styles.top50Address} numberOfLines={1}>{station.address}</Text>
-                  </View>
-                  <View style={styles.top50Price}>
-                    <Text style={styles.top50PriceValue}>
+                  <View className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+                    <Text className="text-sm text-gray-500 dark:text-gray-400 mb-1">Price</Text>
+                    <Text className="text-2xl font-bold text-red-600 dark:text-red-500">
                       {formatPrice(station.price)}
                     </Text>
                   </View>
-                </>
+                </View>
+              ) : (
+                <View className="flex-row items-center">
+                  <View className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 items-center justify-center mr-3">
+                    <Text className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                      #{index + 1}
+                    </Text>
+                  </View>
+                  <Image 
+                    source={BrandLogos[station.brand] || require('../assets/default-fuel-logo.png')}
+                    className="w-8 h-8 rounded-full mr-3"
+                    resizeMode="contain"
+                  />
+                  <View className="flex-1">
+                    <Text className="font-semibold text-gray-900 dark:text-white">
+                      {station.brand}
+                    </Text>
+                    <Text className="text-sm text-gray-500 dark:text-gray-400" numberOfLines={1}>
+                      {station.address}
+                    </Text>
+                  </View>
+                  <Text className="text-base font-semibold text-red-600 dark:text-red-500">
+                    {formatPrice(station.price)}
+                  </Text>
+                </View>
               )}
             </TouchableOpacity>
           ))}
-          {!showAllTop50 && <View style={styles.gradientOverlay} />}
+          {!showAllTop50 && (
+            <View className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent" />
+          )}
         </View>
+        
         <TouchableOpacity 
-          style={styles.showMoreButton}
+          className="flex-row items-center justify-center py-3"
           onPress={() => setShowAllTop50(!showAllTop50)}
         >
-          <Text style={styles.showMoreText}>
+          <Text className="text-red-600 dark:text-red-500 font-semibold mr-1">
             {showAllTop50 ? 'Show Less' : 'Show More'}
           </Text>
           <Ionicons 
@@ -420,11 +421,13 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
         </TouchableOpacity>
       </View>
 
-      {/* Region Selector Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Cheapest regions</Text>
+      {/* Region Selector */}
+      <View className="bg-white dark:bg-gray-800 rounded-xl p-4 mb-4 border border-gray-200 dark:border-gray-700">
+        <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+          Cheapest regions
+        </Text>
         
-        <View style={[styles.regionListContainer, !showAllRegions && styles.regionListCollapsed]}>
+        <View className={!showAllRegions ? 'max-h-[300px] overflow-hidden relative' : ''}>
           {stats.cityPrices
             .filter(city => city.city !== 'Other')
             .sort((a, b) => {
@@ -436,55 +439,52 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
             .map((city, index) => (
               <TouchableOpacity
                 key={city.city}
-                style={[
-                  styles.regionItem,
-                  index === 0 && styles.regionHeroItem
-                ]}
+                className={`p-3 ${index === 0 ? 'bg-red-50 dark:bg-red-900/10 rounded-xl' : ''}`}
               >
                 {index === 0 ? (
-                  <>
-                    <View style={styles.regionHeroContent}>
-                      <View style={styles.regionHeroHeader}>
-                        <View style={styles.regionHeroRank}>
-                          <Text style={styles.regionHeroRankText}>#1</Text>
-                        </View>
-                        <View style={styles.regionHeroDetails}>
-                          <Text style={styles.regionHeroName}>{city.city}</Text>
-                        </View>
+                  <View className="flex-row justify-between items-center">
+                    <View className="flex-row items-center mb-4">
+                      <View className="w-10 h-10 rounded-full bg-red-600 items-center justify-center mr-3">
+                        <Text className="text-white font-bold">#1</Text>
                       </View>
-                      <View style={styles.regionHeroPrice}>
-                        <View style={styles.regionHeroPriceBox}>
-                          <Text style={styles.regionHeroPriceLabel}>Price</Text>
-                          <Text style={styles.regionHeroPriceValue}>
-                            {formatPrice(selectedFuelType === 'E10' ? city.cheapestE10 : city.cheapestB7)}
-                          </Text>
-                        </View>
-                      </View>
+                      <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                        {city.city}
+                      </Text>
                     </View>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.regionRank}>
-                      <Text style={styles.regionRankText}>#{index + 1}</Text>
-                    </View>
-                    <Text style={styles.regionItemName}>{city.city}</Text>
-                    <View style={styles.regionItemPrices}>
-                      <Text style={styles.regionItemPrice}>
+                    <View className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+                      <Text className="text-sm text-gray-500 dark:text-gray-400 mb-1">Price</Text>
+                      <Text className="text-2xl font-bold text-red-600 dark:text-red-500">
                         {formatPrice(selectedFuelType === 'E10' ? city.cheapestE10 : city.cheapestB7)}
                       </Text>
                     </View>
-                  </>
+                  </View>
+                ) : (
+                  <View className="flex-row items-center">
+                    <View className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 items-center justify-center mr-3">
+                      <Text className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                        #{index + 1}
+                      </Text>
+                    </View>
+                    <Text className="flex-1 text-gray-900 dark:text-white">
+                      {city.city}
+                    </Text>
+                    <Text className="text-base font-semibold text-red-600 dark:text-red-500">
+                      {formatPrice(selectedFuelType === 'E10' ? city.cheapestE10 : city.cheapestB7)}
+                    </Text>
+                  </View>
                 )}
               </TouchableOpacity>
             ))}
-          {!showAllRegions && <View style={styles.gradientOverlay} />}
+          {!showAllRegions && (
+            <View className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent" />
+          )}
         </View>
 
         <TouchableOpacity 
-          style={styles.showMoreButton}
+          className="flex-row items-center justify-center py-3"
           onPress={() => setShowAllRegions(!showAllRegions)}
         >
-          <Text style={styles.showMoreText}>
+          <Text className="text-red-600 dark:text-red-500 font-semibold mr-1">
             {showAllRegions ? 'Show Less' : 'Show More'}
           </Text>
           <Ionicons 
@@ -502,36 +502,39 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
         animationType="slide"
         onRequestClose={() => setShowRegionPicker(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Region</Text>
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-white dark:bg-gray-800 rounded-t-3xl">
+            <View className="flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+              <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                Select Region
+              </Text>
               <TouchableOpacity 
-                style={styles.modalCloseButton} 
+                className="p-2 rounded-full bg-gray-100 dark:bg-gray-700"
                 onPress={() => setShowRegionPicker(false)}
               >
                 <Ionicons name="close" size={24} color={AppTheme.colors.primary} />
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.regionListContainer}>
+            <ScrollView className="max-h-[80%]">
               {stats.cityPrices
                 .sort((a, b) => a.city.localeCompare(b.city))
                 .map((city) => (
                   <Pressable
                     key={city.city}
-                    style={[
-                      styles.regionItem,
-                      selectedRegion?.city === city.city && styles.selectedRegionItem
-                    ]}
+                    className={`flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 ${
+                      selectedRegion?.city === city.city ? 'bg-red-50 dark:bg-red-900/10' : ''
+                    }`}
                     onPress={() => {
                       setSelectedRegion(city);
                       setShowRegionPicker(false);
                     }}
                   >
-                    <Text style={styles.regionItemName}>{city.city}</Text>
-                    <View style={styles.regionItemPrices}>
-                      <Text style={styles.regionItemPrice}>
+                    <Text className="text-base text-gray-900 dark:text-white">
+                      {city.city}
+                    </Text>
+                    <View className="flex-row items-center">
+                      <Text className="text-base font-semibold text-red-600 dark:text-red-500 mr-2">
                         {formatPrice(selectedFuelType === 'E10' ? city.cheapestE10 : city.cheapestB7)}
                       </Text>
                       {selectedRegion?.city === city.city && (
@@ -547,595 +550,5 @@ const FuelStatsCards: React.FC<FuelStatsCardsProps> = ({ stats, onStationSelect,
     </ScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: AppTheme.colors.background,
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  fuelTypeContainer: {
-    flexDirection: 'row',
-    backgroundColor: AppTheme.colors.card,
-    borderRadius: 12,
-    marginBottom: 16,
-    padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  fuelTypeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  selectedFuelType: {
-    backgroundColor: `${AppTheme.colors.primary}10`,
-  },
-  fuelTypeText: {
-    fontWeight: '600',
-    marginLeft: 6,
-    color: '#6B7280',
-  },
-  selectedFuelTypeText: {
-    color: AppTheme.colors.primary,
-  },
-  card: {
-    backgroundColor: AppTheme.colors.card,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: AppTheme.colors.primary,
-    marginRight: 2,
-  },
-  stationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  stationLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 12,
-    backgroundColor: '#F3F4F6',
-  },
-  stationDetails: {
-    flex: 1,
-  },
-  stationName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  stationAddress: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  priceBox: {
-    flex: 1,
-    padding: 12,
-    alignItems: 'center',
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  priceValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: AppTheme.colors.primary,
-  },
-  savingsBox: {
-    flex: 1,
-    padding: 12,
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-  },
-  savingsLabel: {
-    fontSize: 14,
-    color: '#065F46',
-    marginBottom: 4,
-  },
-  savingsValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  averagePriceContainer: {
-    flexDirection: 'row',
-    marginTop: 8,
-  },
-  averagePriceBox: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    marginHorizontal: 4,
-  },
-  averagePriceLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  averagePriceValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  fuelTypeSmall: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  regionName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  regionPriceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  regionPriceBox: {
-    flex: 1,
-  },
-  regionPriceValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: AppTheme.colors.primary,
-    marginBottom: 4,
-  },
-  regionPriceLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  findNearbyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: AppTheme.colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  findNearbyText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    marginRight: 6,
-  },
-  noRegionText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: AppTheme.colors.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  regionListContainer: {
-    marginTop: 8,
-  },
-  regionListCollapsed: {
-    maxHeight: 300,
-    overflow: 'hidden',
-  },
-  selectedRegionDetails: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  regionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  selectedRegionItem: {
-    backgroundColor: '#F0F9FF',
-  },
-  regionItemName: {
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  regionItemPrices: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  regionItemPrice: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: AppTheme.colors.primary,
-    marginRight: 8,
-  },
-  lastUpdated: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  directionsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: AppTheme.colors.primary,
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
-  },
-  directionsButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  directionsButtonSmall: {
-    backgroundColor: AppTheme.colors.primary,
-    padding: 6,
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  radiusSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    padding: 2,
-  },
-  radiusButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  selectedRadiusButton: {
-    backgroundColor: AppTheme.colors.primary,
-  },
-  radiusButtonText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  selectedRadiusButtonText: {
-    color: '#FFFFFF',
-  },
-  nearbyStationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  nearbyStationLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 12,
-  },
-  nearbyStationDetails: {
-    flex: 1,
-  },
-  nearbyStationName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  nearbyStationAddress: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  nearbyStationDistance: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  nearbyStationPrice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  nearbyStationPriceValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: AppTheme.colors.primary,
-  },
-  top50Container: {
-    marginTop: 12,
-  },
-  top50ContainerCollapsed: {
-    maxHeight: 500,
-    overflow: 'hidden',
-  },
-  gradientOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-    backgroundColor: AppTheme.colors.card,
-    opacity: 0.8,
-  },
-  showMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  showMoreText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: AppTheme.colors.primary,
-    marginRight: 4,
-  },
-  top50Item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  top50Rank: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  top50RankText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  top50Logo: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 12,
-  },
-  top50Details: {
-    flex: 1,
-  },
-  top50Name: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  top50Address: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  top50Price: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  top50PriceValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: AppTheme.colors.primary,
-  },
-  top50HeroItem: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    marginBottom: 8,
-    padding: 16,
-  },
-  top50HeroContent: {
-    width: '100%',
-  },
-  top50HeroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  top50HeroRank: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: AppTheme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  top50HeroRankText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  top50HeroLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 12,
-  },
-  top50HeroDetails: {
-    flex: 1,
-  },
-  top50HeroName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  top50HeroAddress: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  top50HeroPrice: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  top50HeroPriceBox: {
-    flex: 1,
-    padding: 12,
-    alignItems: 'center',
-  },
-  top50HeroPriceLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  top50HeroPriceValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: AppTheme.colors.primary,
-  },
-  regionHeroItem: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    marginBottom: 8,
-    padding: 16,
-  },
-  regionHeroContent: {
-    width: '100%',
-  },
-  regionHeroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  regionHeroRank: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: AppTheme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  regionHeroRankText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  regionHeroDetails: {
-    flex: 1,
-  },
-  regionHeroName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  regionHeroPrice: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  regionHeroPriceBox: {
-    flex: 1,
-    padding: 12,
-    alignItems: 'center',
-  },
-  regionHeroPriceLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  regionHeroPriceValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: AppTheme.colors.primary,
-  },
-  regionRank: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  regionRankText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  cardHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  refreshButton: {
-    padding: 4,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-  },
-  lastUpdatedText: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-});
 
 export default FuelStatsCards; 
