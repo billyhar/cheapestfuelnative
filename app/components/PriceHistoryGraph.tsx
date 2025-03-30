@@ -1,6 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ActivityIndicator, Dimensions, TouchableOpacity, StyleSheet } from 'react-native';
-import { format, parseISO, subDays, subMonths, subYears, subWeeks } from 'date-fns';
+import { 
+  format, 
+  parseISO, 
+  subDays, 
+  subMonths, 
+  subYears, 
+  subWeeks,
+  addDays,
+  addMonths,
+  differenceInDays,
+  differenceInMonths
+} from 'date-fns';
 import { FuelPriceService } from '../../services/FuelPriceService';
 import { LineGraph } from 'react-native-graph';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,6 +24,12 @@ interface PriceHistoryGraphProps {
 type TimeRange = 'week' | 'month' | 'year' | 'all';
 
 const screenWidth = Dimensions.get('window').width - 32; // Reduced side padding
+
+// Add this interface near the top of the file
+interface GraphPoint {
+  value: number;
+  date: Date;
+}
 
 export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) {
   const [priceHistory, setPriceHistory] = useState<Array<{ price: number; recorded_at: string }>>([]);
@@ -114,17 +131,79 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
     return formatPriceForDisplay(priceHistory[0].price);
   };
 
-  const referencePrice = getReferencePrice();
-  const priceDifference = currentPrice - referencePrice;
-  const percentChange = referencePrice > 0 ? (priceDifference / referencePrice) * 100 : 0;
-  
-  const isPriceUp = priceDifference > 0;
+  // Update the graphPoints transformation to ensure we have a point for each day
+  const graphPoints = useMemo((): GraphPoint[] => {
+    if (priceHistory.length === 0) return [];
 
-  // Transform price history for the graph
-  const graphPoints = priceHistory.map((point, index) => ({
-    value: formatPriceForDisplay(point.price),
-    date: new Date(point.recorded_at),
-  }));
+    // For week view, ensure we have all 7 days
+    if (timeRange === 'week') {
+      const endDate = new Date(priceHistory[priceHistory.length - 1].recorded_at);
+      const startDate = subDays(endDate, 6);
+      const dailyPoints: GraphPoint[] = [];
+      
+      // Create array of 7 days
+      for (let i = 0; i <= 6; i++) {
+        const currentDate = addDays(startDate, i);
+        // Find the price for this day
+        const priceForDay = priceHistory.find(p => 
+          format(new Date(p.recorded_at), 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd')
+        );
+        
+        // If we have a price for this day, use it
+        // Otherwise, use the last known price
+        const price = priceForDay 
+          ? formatPriceForDisplay(priceForDay.price)
+          : dailyPoints[dailyPoints.length - 1]?.value || formatPriceForDisplay(priceHistory[0].price);
+        
+        dailyPoints.push({
+          value: price,
+          date: currentDate
+        });
+      }
+      return dailyPoints;
+    }
+
+    // For other views, use the existing points
+    return priceHistory.map(point => ({
+      value: formatPriceForDisplay(point.price),
+      date: new Date(point.recorded_at)
+    }));
+  }, [priceHistory, timeRange]);
+
+  // Add this helper function after the component imports
+  const getVerticalGridLines = (timeRange: TimeRange, startDate: Date, endDate: Date) => {
+    const lines: Date[] = [];
+    
+    switch(timeRange) {
+      case 'week':
+        // Create 7 evenly spaced lines for each day
+        for (let i = 0; i <= 6; i++) {
+          lines.push(subDays(endDate, 6 - i));
+        }
+        break;
+      case 'month':
+        // Create lines for each day (30/31 lines)
+        const daysInRange = differenceInDays(endDate, startDate);
+        for (let i = 0; i <= daysInRange; i++) {
+          lines.push(addDays(startDate, i));
+        }
+        break;
+      case 'year':
+        // Create 12 lines for each month
+        for (let i = 0; i <= 11; i++) {
+          lines.push(addMonths(startDate, i));
+        }
+        break;
+      case 'all':
+        // Create lines for each month in the range
+        const monthsInRange = differenceInMonths(endDate, startDate);
+        for (let i = 0; i <= monthsInRange; i++) {
+          lines.push(addMonths(startDate, i));
+        }
+        break;
+    }
+    return lines;
+  };
 
   if (loading) {
     return (
@@ -153,8 +232,27 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
     );
   }
 
+  // Update the price buffer calculation to make changes even more visible
   const maxPrice = Math.max(...graphPoints.map(p => p.value));
   const minPrice = Math.min(...graphPoints.map(p => p.value));
+  const graphPriceDifference = maxPrice - minPrice;
+
+  // If the price difference is very small (less than 5p), create an artificial range
+  const minPriceDifference = 0.05; // 5 pence minimum difference
+  const effectivePriceDifference = Math.max(graphPriceDifference, minPriceDifference);
+
+  // Calculate the midpoint of the price range
+  const midPrice = (maxPrice + minPrice) / 2;
+
+  // Create an expanded range around the midpoint
+  const expandedMax = midPrice + (effectivePriceDifference / 2);
+  const expandedMin = midPrice - (effectivePriceDifference / 2);
+
+  // Keep the reference price difference calculation separate
+  const referencePrice = getReferencePrice();
+  const referencePriceDifference = currentPrice - referencePrice;
+  const percentChange = referencePrice > 0 ? (referencePriceDifference / referencePrice) * 100 : 0;
+  const isPriceUp = referencePriceDifference > 0;
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -176,7 +274,7 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
           <View className="flex-1">
             <Text className="text-sm text-gray-500 mb-1">Change</Text>
             <Text className={`text-lg font-bold ${isPriceUp ? 'text-red-500' : 'text-green-500'}`}>
-              {isPriceUp ? '+' : ''}{priceDifference.toFixed(2)} ({isPriceUp ? '+' : ''}{percentChange.toFixed(1)}%)
+              {isPriceUp ? '+' : ''}{referencePriceDifference.toFixed(2)} ({isPriceUp ? '+' : ''}{percentChange.toFixed(1)}%)
             </Text>
           </View>
         </View>
@@ -184,11 +282,31 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
         {/* Interactive price graph */}
         <View style={styles.graphWrapper}>
           <View style={styles.gridContainer}>
-            <View style={styles.horizontalGrid} />
-            <View style={styles.horizontalGrid} />
-            <View style={styles.horizontalGrid} />
-            <View style={styles.horizontalGrid} />
+            {/* Horizontal grid lines aligned with price scale */}
+            {Array.from({ length: 3 }).map((_, i) => (
+              <View 
+                key={`h-${i}`} 
+                style={[
+                  styles.horizontalGrid,
+                  { bottom: `${((i + 1) / 3) * 100}%` }
+                ]}
+              />
+            ))}
+            
+            {/* Vertical grid lines */}
+            {timeRange === 'week' && graphPoints.map((_, i) => (
+              <View
+                key={`v-${i}`}
+                style={[
+                  styles.verticalGrid,
+                  {
+                    left: `${(i / 6) * 100}%`,
+                  }
+                ]}
+              />
+            ))}
           </View>
+          
           <View style={styles.graphContainer}>
             <LineGraph
               points={graphPoints}
@@ -203,6 +321,13 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
                 'rgba(239, 68, 68, 0.2)',
                 'rgba(239, 68, 68, 0.05)'
               ]}
+              range={{
+                y: {
+                  min: expandedMin,
+                  max: expandedMax
+                }
+              }}
+              verticalPadding={5} // Even less padding to maximize graph height
               onPointSelected={(point) => {
                 setSelectedPrice(point.value);
                 setSelectedDate(point.date);
@@ -216,12 +341,12 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
               }}
               TopAxisLabel={() => (
                 <Text style={styles.axisLabel}>
-                  £{maxPrice.toFixed(2)}
+                  £{expandedMax.toFixed(2)}
                 </Text>
               )}
               BottomAxisLabel={() => (
                 <Text style={styles.axisLabel}>
-                  £{minPrice.toFixed(2)}
+                  £{expandedMin.toFixed(2)}
                 </Text>
               )}
             />
@@ -272,13 +397,11 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 8,
+    top: 20, // Match the graphContainer padding
+    left: 8, // Match the graphContainer padding
+    right: 8, // Match the graphContainer padding
+    bottom: 20, // Match the graphContainer padding
     justifyContent: 'space-between',
-    paddingVertical: 20,
   },
   horizontalGrid: {
     width: '100%',
@@ -298,5 +421,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     paddingHorizontal: 4,
-  }
+  },
+  verticalGrid: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(229, 231, 235, 0.5)',
+  },
 }); 
