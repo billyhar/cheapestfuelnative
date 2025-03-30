@@ -61,6 +61,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   const [selectedFuelType, setSelectedFuelType] = useState<'E10' | 'B7'>(
     station.prices.E10 ? 'E10' : 'B7'
   );
+  const [isUpvoted, setIsUpvoted] = useState(false);
   
   // ref
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -367,7 +368,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           {/* Current Price Info */}
           <View className="bg-gray-50 rounded-2xl p-4 mb-4">
             {/* Fuel Type and Upvote Section */}
-            <View className="flex-row justify-between items-start">
+            <View className="flex-row justify-between items-start mb-4">
               <View className="flex-1 mr-4">
                 <Text className="text-base text-gray-600 mb-1">
                   {selectedFuelType === 'E10' ? 'Petrol (E10)' : 'Diesel (B7)'}
@@ -378,17 +379,21 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               </View>
               <UpvoteButton 
                 stationId={station.site_id} 
-                fuelType={selectedFuelType} 
+                fuelType={selectedFuelType}
+                onUpvoteChange={(upvoted) => setIsUpvoted(upvoted > 0)} 
+                currentPrice={Math.round(selectedFuelType === 'E10' ? station.prices.E10 || 0 : station.prices.B7 || 0)}
               />
             </View>
 
             {/* Divider */}
-            <View className="h-px bg-gray-200 my-3" />
+            <View className="h-px bg-gray-200 mb-3" />
 
-            {/* Upvote Details Section */}
+            {/* Full width UpvoteDetails */}
             <UpvoteDetails 
               stationId={station.site_id} 
-              fuelType={selectedFuelType} 
+              fuelType={selectedFuelType}
+              hasUserUpvoted={isUpvoted}
+              currentPrice={Math.round(selectedFuelType === 'E10' ? station.prices.E10 || 0 : station.prices.B7 || 0)}
             />
           </View>
 

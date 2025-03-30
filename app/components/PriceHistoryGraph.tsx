@@ -12,7 +12,7 @@ interface PriceHistoryGraphProps {
 
 type TimeRange = 'week' | 'month' | 'year' | 'all';
 
-const screenWidth = Dimensions.get('window').width - 40; // Padding on both sides
+const screenWidth = Dimensions.get('window').width - 32; // Reduced side padding
 
 export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) {
   const [priceHistory, setPriceHistory] = useState<Array<{ price: number; recorded_at: string }>>([]);
@@ -80,11 +80,43 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
   const currentPrice = priceHistory.length > 0 
     ? formatPriceForDisplay(priceHistory[priceHistory.length - 1].price)
     : 0;
-  const initialPrice = priceHistory.length > 0 
-    ? formatPriceForDisplay(priceHistory[0].price)
-    : 0;
-  const priceDifference = currentPrice - initialPrice;
-  const percentChange = initialPrice > 0 ? (priceDifference / initialPrice) * 100 : 0;
+
+  // Calculate the reference price based on time range
+  const getReferencePrice = () => {
+    if (priceHistory.length === 0) return 0;
+    
+    const now = new Date();
+    let referenceDate;
+    
+    switch(timeRange) {
+      case 'week':
+        referenceDate = subWeeks(now, 1);
+        break;
+      case 'month':
+        referenceDate = subMonths(now, 1);
+        break;
+      case 'year':
+        referenceDate = subYears(now, 1);
+        break;
+      case 'all':
+        return formatPriceForDisplay(priceHistory[0].price);
+    }
+    
+    // Find the closest price point before the reference date
+    for (let i = priceHistory.length - 1; i >= 0; i--) {
+      const priceDate = new Date(priceHistory[i].recorded_at);
+      if (priceDate <= referenceDate) {
+        return formatPriceForDisplay(priceHistory[i].price);
+      }
+    }
+    
+    // If no price found before reference date, use the oldest available price
+    return formatPriceForDisplay(priceHistory[0].price);
+  };
+
+  const referencePrice = getReferencePrice();
+  const priceDifference = currentPrice - referencePrice;
+  const percentChange = referencePrice > 0 ? (priceDifference / referencePrice) * 100 : 0;
   
   const isPriceUp = priceDifference > 0;
 
@@ -161,12 +193,16 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
             <LineGraph
               points={graphPoints}
               animated={true}
-              color="#0077FF"
+              color="#EF4444"
               style={styles.graph}
               enablePanGesture={true}
               panGestureDelay={0}
               lineThickness={2}
-              selectionDotShadowColor="rgba(0, 119, 255, 0.3)"
+              selectionDotShadowColor="rgba(239, 68, 68, 0.3)"
+              gradientFillColors={[
+                'rgba(239, 68, 68, 0.2)',
+                'rgba(239, 68, 68, 0.05)'
+              ]}
               onPointSelected={(point) => {
                 setSelectedPrice(point.value);
                 setSelectedDate(point.date);
@@ -240,7 +276,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     justifyContent: 'space-between',
     paddingVertical: 20,
   },
@@ -251,15 +287,16 @@ const styles = StyleSheet.create({
   },
   graphContainer: {
     height: '100%',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 20,
   },
   graph: {
-    width: screenWidth - 32,
+    width: screenWidth - 16,
     height: 180,
   },
   axisLabel: {
     fontSize: 12,
     color: '#6B7280',
+    paddingHorizontal: 4,
   }
 }); 
