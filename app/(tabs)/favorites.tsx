@@ -6,6 +6,7 @@ import { Station } from '../../types/station';
 import StationCard from '../../components/StationCard';
 import { useColorScheme } from 'react-native';
 import { AppTheme } from '../../constants/BrandAssets';
+import { useRouter } from 'expo-router';
 
 interface FavoriteStation extends Station {
   favorite_id: string;
@@ -18,6 +19,7 @@ export default function FavoritesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
+  const router = useRouter();
 
   const fetchFavorites = async () => {
     if (!user) return;
@@ -92,6 +94,27 @@ export default function FavoritesScreen() {
     }
   };
 
+  const handleStationPress = (station: FavoriteStation) => {
+    // Create a station object with the required format
+    const stationDetails = {
+      site_id: station.id,
+      brand: station.brand,
+      address: station.address,
+      postcode: '', // Add this field if available in your data
+      location: {
+        latitude: station.latitude,
+        longitude: station.longitude
+      },
+      prices: station.prices,
+      last_updated: station.last_updated
+    };
+
+    router.push({
+      pathname: '/(modals)/station-details',
+      params: { station: JSON.stringify(stationDetails) }
+    });
+  };
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center">
@@ -101,16 +124,18 @@ export default function FavoritesScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-900">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-900">
       <FlatList
         data={favorites}
         keyExtractor={(item) => item.favorite_id}
+        contentContainerStyle={{ paddingVertical: 8 }}
         renderItem={({ item }) => (
           <StationCard
             station={item}
             onFavoritePress={() => handleRemoveFavorite(item.favorite_id)}
             isFavorite={true}
             isDeleting={item.isDeleting}
+            onPress={() => handleStationPress(item)}
           />
         )}
         ListEmptyComponent={

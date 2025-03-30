@@ -163,7 +163,7 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
         <View className="flex-row justify-between mb-4">
           <View className="flex-1">
             <Text className="text-sm text-gray-500 mb-1">Current</Text>
-            <Text className="text-lg font-bold">
+            <Text className="text-xl font-bold">
               £{selectedPrice !== null ? selectedPrice.toFixed(2) : currentPrice.toFixed(2)}
             </Text>
             {selectedDate && (
