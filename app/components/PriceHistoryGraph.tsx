@@ -10,7 +10,7 @@ interface PriceHistoryGraphProps {
   fuelType: 'e10' | 'b7' | 'e5' | 'sdv';
 }
 
-type TimeRange = 'week' | 'month' | 'year';
+type TimeRange = 'week' | 'month' | 'year' | 'all';
 
 const screenWidth = Dimensions.get('window').width - 40; // Padding on both sides
 
@@ -35,11 +35,23 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
       
       // Filter prices based on time range
       const now = new Date();
-      const filterDate = timeRange === 'week' 
-        ? subWeeks(now, 1)
-        : timeRange === 'month'
-        ? subMonths(now, 1)
-        : subYears(now, 1);
+      let filterDate = now;
+      
+      switch(timeRange) {
+        case 'week':
+          filterDate = subWeeks(now, 1);
+          break;
+        case 'month':
+          filterDate = subMonths(now, 1);
+          break;
+        case 'year':
+          filterDate = subYears(now, 1);
+          break;
+        case 'all':
+          // Don't filter by date for 'all'
+          setPriceHistory(prices);
+          return;
+      }
       
       const filteredPrices = prices.filter(price => 
         new Date(price.recorded_at) >= filterDate
@@ -138,42 +150,57 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
         </View>
         
         {/* Interactive price graph */}
-        <View style={styles.graphContainer}>
-          <LineGraph
-            points={graphPoints}
-            animated={true}
-            color="#0077FF"
-            style={styles.graph}
-            enablePanGesture={true}
-            onPointSelected={(point) => {
-              console.log('Point selected:', point);
-              setSelectedPrice(point.value);
-              setSelectedDate(point.date);
-            }}
-            onGestureEnd={() => {
-              console.log('Gesture ended');
-              setSelectedPrice(null);
-              setSelectedDate(null);
-            }}
-            TopAxisLabel={() => (
-              <Text style={styles.axisLabel}>
-                £{maxPrice.toFixed(2)}
-              </Text>
-            )}
-            BottomAxisLabel={() => (
-              <Text style={styles.axisLabel}>
-                £{minPrice.toFixed(2)}
-              </Text>
-            )}
-          />
+        <View style={styles.graphWrapper}>
+          <View style={styles.gridContainer}>
+            <View style={styles.horizontalGrid} />
+            <View style={styles.horizontalGrid} />
+            <View style={styles.horizontalGrid} />
+            <View style={styles.horizontalGrid} />
+          </View>
+          <View style={styles.graphContainer}>
+            <LineGraph
+              points={graphPoints}
+              animated={true}
+              color="#0077FF"
+              style={styles.graph}
+              enablePanGesture={true}
+              panGestureDelay={0}
+              lineThickness={2}
+              selectionDotShadowColor="rgba(0, 119, 255, 0.3)"
+              onPointSelected={(point) => {
+                setSelectedPrice(point.value);
+                setSelectedDate(point.date);
+              }}
+              onGestureEnd={() => {
+                if (priceHistory.length > 0) {
+                  const latestPrice = priceHistory[priceHistory.length - 1];
+                  setSelectedPrice(formatPriceForDisplay(latestPrice.price));
+                  setSelectedDate(new Date(latestPrice.recorded_at));
+                }
+              }}
+              TopAxisLabel={() => (
+                <Text style={styles.axisLabel}>
+                  £{maxPrice.toFixed(2)}
+                </Text>
+              )}
+              BottomAxisLabel={() => (
+                <Text style={styles.axisLabel}>
+                  £{minPrice.toFixed(2)}
+                </Text>
+              )}
+            />
+          </View>
         </View>
 
-        {/* Time range selector */}
+        {/* Time range buttons */}
         <View className="flex-row justify-between mt-4">
-          {(['week', 'month', 'year'] as TimeRange[]).map((range) => (
+          {(['week', 'month', 'year', 'all'] as TimeRange[]).map((range) => (
             <TouchableOpacity
               key={range}
-              onPress={() => setTimeRange(range)}
+              onPress={() => {
+                setTimeRange(range);
+              }}
+              activeOpacity={0.7}
               className={`px-4 py-2 rounded-full ${
                 timeRange === range ? 'bg-red-500' : 'bg-red-100'
               }`}
@@ -183,7 +210,10 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
                   timeRange === range ? 'text-white' : 'text-red-600'
                 }`}
               >
-                {range.charAt(0).toUpperCase() + range.slice(1)}
+                {range === 'week' ? '1W' : 
+                 range === 'month' ? '1M' : 
+                 range === 'year' ? '1Y' : 
+                 'All'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -197,18 +227,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  graphContainer: {
+  graphWrapper: {
     height: 220,
     backgroundColor: 'white',
     borderRadius: 16,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  gridContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    paddingVertical: 20,
+  },
+  horizontalGrid: {
+    width: '100%',
+    height: 1,
+    backgroundColor: 'rgba(229, 231, 235, 0.5)',
+  },
+  graphContainer: {
+    height: '100%',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
   graph: {
-    width: screenWidth,
-    height: 220,
+    width: screenWidth - 32,
+    height: 180,
   },
   axisLabel: {
     fontSize: 12,
     color: '#6B7280',
-  },
+  }
 }); 
