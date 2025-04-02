@@ -94,9 +94,9 @@ packagingOptions {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.creativebillyy.cheapestfuelnative'
+    namespace 'com.cheapestfuel.app'
     defaultConfig {
-        applicationId 'com.creativebillyy.cheapestfuelnative'
+        applicationId 'com.cheapestfuel.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

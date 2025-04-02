@@ -14,6 +14,14 @@ import RecoveryButton from './RecoveryTools';
 // Initialize Mapbox
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
 
+// Add these constants near the top of the file, after the imports
+const UK_BOUNDS = {
+  minLon: -8.65, // Western edge
+  maxLon: 1.76,  // Eastern edge 
+  minLat: 49.84, // Southern edge
+  maxLat: 60.86  // Northern edge
+};
+
 interface PriceStats {
   E10: { min: number; max: number };
   B7: { min: number; max: number };
@@ -226,13 +234,19 @@ const FuelPriceMap: React.FC = () => {
       type: 'FeatureCollection',
       features: fuelStations
         .filter(station => {
-          return (
+          // Validate coordinates are within UK bounds
+          const isValidLocation = 
             typeof station.location.longitude === 'number' &&
             typeof station.location.latitude === 'number' &&
             !isNaN(station.location.longitude) &&
             !isNaN(station.location.latitude) &&
-            station.prices[selectedFuelType] // Only show stations with selected fuel type
-          );
+            station.location.longitude >= UK_BOUNDS.minLon &&
+            station.location.longitude <= UK_BOUNDS.maxLon &&
+            station.location.latitude >= UK_BOUNDS.minLat &&
+            station.location.latitude <= UK_BOUNDS.maxLat &&
+            station.prices[selectedFuelType]; // Only show stations with selected fuel type
+
+          return isValidLocation;
         })
         .map(station => ({
           type: 'Feature',

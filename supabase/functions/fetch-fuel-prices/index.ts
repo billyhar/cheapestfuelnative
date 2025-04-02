@@ -1,5 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.21.0';
 
+// Add this at the top of your file if not already present
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 // Initialize Supabase client with service role
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -83,15 +89,42 @@ Deno.serve(async () => {
       {
         url: 'https://www.rontec-servicestations.co.uk/fuel-prices/data/fuel_prices_data.json',
         brand: 'Rontec',
-        transform: (data: any): FuelPrice[] => {
-          return data.stations?.map((station: any) => ({
-            site_id: `rontec-${station.site_id}`,
-            brand: 'Rontec',
-            e10_price: station.prices?.E10 || null,
-            b7_price: station.prices?.B7 || null,
-            e5_price: station.prices?.E5 || null,
-            sdv_price: station.prices?.SDV || null
-          })) || [];
+        transform: async (data: any): Promise<FuelPrice[]> => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+          try {
+            const rontecResponse = await fetch('https://www.rontec-servicestations.co.uk/fuel-prices/data/fuel_prices_data.json', {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.rontec-servicestations.co.uk',
+                'Origin': 'https://www.rontec-servicestations.co.uk',
+              },
+              signal: controller.signal,
+            });
+
+            if (!rontecResponse.ok) {
+              throw new Error(`HTTP error! status: ${rontecResponse.status}`);
+            }
+
+            const rontecData = await rontecResponse.json();
+
+            return rontecData.stations?.map((station: any) => ({
+              site_id: `rontec-${station.site_id}`,
+              brand: 'Rontec',
+              e10_price: station.prices?.E10 || null,
+              b7_price: station.prices?.B7 || null,
+              e5_price: station.prices?.E5 || null,
+              sdv_price: station.prices?.SDV || null
+            })) || [];
+          } catch (error) {
+            console.error('Error fetching Rontec data:', error);
+            throw error;
+          } finally {
+            clearTimeout(timeoutId);
+          }
         }
       },
       {
@@ -205,8 +238,10 @@ Deno.serve(async () => {
         console.log(`Fetching from ${api.brand}...`);
         const response = await fetch(api.url, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; CheapestFuelBot/1.0; +https://cheapestfuel.app)',
-            'Accept': 'application/json'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.tesco.com',
           },
           timeout: 10000 // 10 second timeout
         });
@@ -222,7 +257,7 @@ Deno.serve(async () => {
           continue;
         }
         
-        const prices = api.transform(data);
+        const prices = await api.transform(data);
         allFuelPrices = [...allFuelPrices, ...prices];
         console.log(`Successfully processed ${prices.length} stations from ${api.brand}`);
       } catch (apiError) {

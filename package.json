@@ -1,5 +1,5 @@
 {
-  "name": "cheapest-fuel-native",
+  "name": "cheapest-fuel",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
