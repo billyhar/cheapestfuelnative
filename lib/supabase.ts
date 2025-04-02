@@ -24,61 +24,48 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
  * This will handle session initialization and token refresh
  */
 export const ensureSupabaseInitialized = async (): Promise<boolean> => {
-  // If already initialized, return success
-  if (isInitialized) {
-    return true;
-  }
+  try {
+    if (isInitialized) return true;
+    if (initializationPromise) return initializationPromise;
 
-  // If initialization is in progress, wait for it
-  if (initializationPromise) {
-    return initializationPromise;
-  }
+    initializationPromise = (async () => {
+      try {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Supabase initialization timeout')), 10000);
+        });
 
-  // Start new initialization
-  initializationPromise = (async () => {
-    try {
-      console.log('[Supabase] Starting initialization...');
-      
-      // First check if we have a session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('[Supabase] Session error:', sessionError);
-        return false;
-      }
+        const initPromise = async () => {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) throw sessionError;
 
-      // If we have a session, verify and refresh if needed
-      if (session) {
-        console.log('[Supabase] Found existing session, verifying...');
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError) {
-          console.error('[Supabase] User verification error:', userError);
-          return false;
-        }
-
-        if (!user) {
-          console.log('[Supabase] Session exists but no user, refreshing...');
-          const { error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError) {
-            console.error('[Supabase] Session refresh error:', refreshError);
-            return false;
+          if (session) {
+            const { error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) throw refreshError;
           }
-        }
+
+          // Simple connection test
+          const { error: testError } = await supabase.from('profiles').select('count').single();
+          if (testError) throw testError;
+
+          return true;
+        };
+
+        await Promise.race([initPromise(), timeoutPromise]);
+        isInitialized = true;
+        return true;
+      } catch (error) {
+        console.error('[Supabase] Initialization failed:', error);
+        return false;
+      } finally {
+        initializationPromise = null;
       }
+    })();
 
-      isInitialized = true;
-      console.log('[Supabase] Initialization successful');
-      return true;
-    } catch (error) {
-      console.error('[Supabase] Initialization error:', error);
-      return false;
-    } finally {
-      initializationPromise = null;
-    }
-  })();
-
-  return initializationPromise;
+    return initializationPromise;
+  } catch (error) {
+    console.error('[Supabase] Fatal initialization error:', error);
+    return false;
+  }
 };
 
 // Function to reset initialization state (for testing/debugging)

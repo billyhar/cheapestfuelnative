@@ -22,49 +22,48 @@ export {
 SplashScreen.preventAutoHideAsync();
 
 const RootLayoutNav = () => {
+  // 1. First declare all hooks that don't depend on others
   const { user, isLoading, profile } = useAuth();
   const colorScheme = useColorScheme();
   const { isDarkMode } = useDarkModeContext();
   const segments = useSegments();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const [supabaseInitialized, setSupabaseInitialized] = useState(false);
+  const [isAppReady, setIsAppReady] = useState(false);
 
-  // Initialize Supabase as early as possible
+  // 2. Combine the initialization effects into one
   useEffect(() => {
-    const initializeServices = async () => {
+    const initializeApp = async () => {
       try {
-        console.log('[Root] Initializing Supabase on app startup...');
+        console.log('[Root] Starting app initialization...');
+        await SplashScreen.preventAutoHideAsync();
         
-        // Initialize Supabase first (very important!)
+        // Initialize Supabase
         await ensureSupabaseInitialized();
-        setSupabaseInitialized(true);
-        console.log('[Root] Supabase initialization completed');
         
         // Clear navigation flags
         await Promise.all([
           AsyncStorage.removeItem('force_navigation'),
           AsyncStorage.removeItem('auth_callback_in_progress')
         ]);
-        console.log('[Root] Navigation flags cleared');
+
+        if (!isLoading) {
+          setIsAppReady(true);
+          await SplashScreen.hideAsync();
+        }
       } catch (error) {
-        console.error('[Root] Error during initialization:', error);
+        console.error('[Root] Initialization error:', error);
+        setIsAppReady(true);
+        await SplashScreen.hideAsync();
       }
     };
     
-    initializeServices();
-  }, []);
+    initializeApp();
+  }, [isLoading]);
 
-  // Hide splash screen once we're ready
+  // 3. Navigation effect - only run when dependencies change and app is ready
   useEffect(() => {
-    if (!isLoading && supabaseInitialized) {
-      console.log('[Root] App loaded and Supabase initialized, hiding splash screen');
-      SplashScreen.hideAsync();
-    }
-  }, [isLoading, supabaseInitialized]);
-
-  useEffect(() => {
-    if (isLoading) return;
+    if (!isAppReady || isLoading) return;
 
     const checkNavigation = async () => {
       try {
@@ -193,22 +192,21 @@ const RootLayoutNav = () => {
         }, 0);
       } catch (error) {
         console.error('[Root] Navigation check error:', error);
-        // If there's an error during navigation, default to the auth screen
         if (segments[0] !== 'auth') {
-          console.log('[Root] Defaulting to auth screen due to error');
           router.replace('/auth');
         }
       }
     };
     
     checkNavigation();
-  }, [user, isLoading, segments, profile, params]);
+  }, [isAppReady, isLoading, user, segments, profile, params, router]);
 
-  // Show nothing while loading
-  if (isLoading || !supabaseInitialized) {
+  // 4. Early return if not ready
+  if (!isAppReady) {
     return null;
   }
 
+  // 5. Render component
   return (
     <GestureHandlerRootView style={styles.container}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
