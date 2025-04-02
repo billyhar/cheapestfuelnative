@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, ActivityIndicator, Dimensions, TouchableOpacity } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { FuelPriceService } from '../services/FuelPriceService';
 import { LineChart } from 'react-native-chart-kit';
+import { ensureSupabaseInitialized } from '../lib/supabase';
 
 // Type for chart data
 interface ChartDataPoint {
@@ -23,28 +24,53 @@ export default function PriceHistoryWrapper({ siteId, fuelType }: PriceHistoryWr
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Initialize Supabase and load price history
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        console.log('[PriceHistory] Initializing Supabase...');
+        await ensureSupabaseInitialized();
+        console.log('[PriceHistory] Supabase initialized, loading price history');
+        await loadPriceHistory();
+      } catch (error) {
+        console.error('[PriceHistory] Initialization error:', error);
+        setError('Failed to initialize. Please try again.');
+        setLoading(false);
+      }
+    };
+    
+    initialize();
+  }, [siteId, fuelType]);
+  
   // Use useCallback to memoize the function to prevent unnecessary rerenders
   const loadPriceHistory = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+      
+      console.log(`[PriceHistory] Loading history for site ${siteId}, fuel ${fuelType}`);
+      
       // Use the FuelPriceService to fetch historical prices from Supabase
       const fuelService = FuelPriceService.getInstance();
       const history = await fuelService.getHistoricalPrices(siteId, fuelType);
       
       // Get the appropriate price history array based on fuel type
       const prices = history[fuelType];
+      console.log(`[PriceHistory] Received ${prices.length} data points`);
+      
       setPriceHistory(prices);
     } catch (err) {
-      console.error('Failed to load price history:', err);
+      console.error('[PriceHistory] Failed to load history:', err);
       setError('Failed to load price history');
     } finally {
       setLoading(false);
     }
   }, [siteId, fuelType]);
   
-  useEffect(() => {
+  const retryLoading = () => {
+    setError(null);
     loadPriceHistory();
-  }, [loadPriceHistory]);
+  };
 
   if (loading) {
     return (
@@ -62,9 +88,14 @@ export default function PriceHistoryWrapper({ siteId, fuelType }: PriceHistoryWr
     return (
       <View className="bg-white p-4 rounded-2xl my-2 shadow-sm">
         <Text className="font-bold text-lg mb-4 text-gray-800">Price History</Text>
-        <View className="h-[220px] justify-center items-center bg-red-50 rounded-2xl">
+        <View className="h-[220px] justify-center items-center bg-red-50 rounded-2xl p-4">
           <Text className="text-red-600 text-base">{error}</Text>
-          <Text className="text-red-400 text-xs mt-2">Tap to retry</Text>
+          <TouchableOpacity 
+            className="mt-4 bg-blue-500 px-5 py-2 rounded-lg"
+            onPress={retryLoading}
+          >
+            <Text className="text-white font-medium">Retry</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );

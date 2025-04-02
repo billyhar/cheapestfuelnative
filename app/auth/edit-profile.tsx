@@ -9,9 +9,11 @@ import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer';
 import { nanoid } from 'nanoid/non-secure';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
+import { useDarkModeContext } from '../../contexts/DarkModeContext';
 
 export default function EditProfileScreen() {
   const { user, profile, updateProfile, refreshUser } = useAuth();
+  const { isDarkMode } = useDarkModeContext();
   const [handle, setHandle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -123,19 +125,23 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className={`flex-1 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Stack.Screen 
         options={{
           title: 'Edit Profile',
           headerShown: true,
           headerBackTitle: 'Back',
+          headerStyle: {
+            backgroundColor: isDarkMode ? '#111827' : '#fff',
+          },
+          headerTintColor: isDarkMode ? '#fff' : '#000',
           headerRight: () => (
             <TouchableOpacity 
               onPress={handleSave} 
               disabled={isLoading || !hasChanges}
               className={`mr-4 ${(!hasChanges || isLoading) ? 'opacity-50' : ''}`}
             >
-              <Text className={`text-blue-500 font-semibold text-lg`}>
+              <Text className={`text-blue-500 font-semibold text-lg ${isDarkMode ? 'text-blue-400' : ''}`}>
                 {isLoading ? 'Saving...' : 'Save'}
               </Text>
             </TouchableOpacity>
@@ -146,7 +152,11 @@ export default function EditProfileScreen() {
         {/* Content */}
         <View className="flex-1">
           {/* Profile Picture Section */}
-          <View className="items-center py-8 border-b border-gray-200">
+          <View className={`
+            items-center py-8 border-b 
+            ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}
+            ${isDarkMode ? 'bg-gray-800' : 'bg-white'}
+          `}>
             <TouchableOpacity 
               onPress={pickImage}
               disabled={isLoading || isUploadingImage}
@@ -157,7 +167,7 @@ export default function EditProfileScreen() {
                 size={128}
                 fallbackText={profile?.handle || 'F'}
               />
-              <View className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2 border-2 border-white">
+              <View className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2 border-2 border-white dark:border-gray-800">
                 <MaterialIcons name="camera-alt" size={20} color="white" />
               </View>
               {(isLoading || isUploadingImage) && (
@@ -166,32 +176,45 @@ export default function EditProfileScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            <Text className="text-blue-500 font-medium mt-4">
+            <Text className={`text-blue-500 dark:text-blue-400 font-medium mt-4`}>
               {isUploadingImage ? 'Uploading...' : 'Change Profile Picture'}
             </Text>
           </View>
 
           {/* Handle Section */}
-          <View className="p-6">
-            <Text className="text-sm text-gray-500 mb-2">Handle</Text>
+          <View className={`p-6 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              Handle
+            </Text>
             <TextInput
               value={handle}
               onChangeText={setHandle}
               placeholder="Enter your handle"
-              className="text-lg border-b border-gray-200 pb-2"
+              placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+              className={`
+                text-lg border-b pb-2
+                ${isDarkMode ? 'text-white border-gray-700' : 'text-gray-900 border-gray-200'}
+              `}
               autoCapitalize="none"
               autoCorrect={false}
               maxLength={30}
             />
-            <Text className="text-sm text-gray-400 mt-1">
+            <Text className="text-sm text-gray-400 dark:text-gray-500 mt-1">
               {handle.length}/30 characters
             </Text>
           </View>
 
           {/* Email Section (Read-only) */}
-          <View className="p-6 border-t border-gray-200">
-            <Text className="text-sm text-gray-500 mb-2">Email</Text>
-            <Text className="text-lg text-gray-900">{user?.email}</Text>
+          <View className={`
+            p-6 border-t
+            ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}
+          `}>
+            <Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              Email
+            </Text>
+            <Text className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              {user?.email}
+            </Text>
           </View>
         </View>
       </View>

@@ -10,8 +10,8 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#007AFF',
-          dark: '#0A84FF',
+          DEFAULT: '#F73535',
+          dark: '#F73535',
         },
         secondary: {
           DEFAULT: '#5856D6',
@@ -30,8 +30,8 @@ module.exports = {
           dark: '#FF453A',
         },
         brand: {
-          DEFAULT: '#1B75BA',
-          dark: '#0A84FF',
+          DEFAULT: '#F73535',
+          dark: '#F73535',
         },
         background: {
           DEFAULT: '#FFFFFF',

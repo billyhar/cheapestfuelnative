@@ -17,7 +17,7 @@ export const BrandLogos: { [key: string]: string } = {
 
 export const AppTheme = {
   colors: {
-    primary: '#007AFF',
+    primary: '#F73535',
     background: '#F8F9FA',
     card: '#FFFFFF',
     text: '#1A1A1A',

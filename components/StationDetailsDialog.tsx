@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Image, Platform, Linking, Alert, ActionSh
 import { Ionicons } from '@expo/vector-icons';
 import { FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
-import PriceHistoryWrapper from './PriceHistoryWrapper';
+import { PriceHistoryGraph } from '../app/components/PriceHistoryGraph';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import UpvoteButton from './UpvoteButton';
@@ -61,6 +61,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   const [selectedFuelType, setSelectedFuelType] = useState<'E10' | 'B7'>(
     station.prices.E10 ? 'E10' : 'B7'
   );
+  const [isUpvoted, setIsUpvoted] = useState(false);
   
   // ref
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -128,14 +129,17 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
     }
 
     try {
-      if (isFavorite && favoriteId) {
+      // Optimistically update the UI state first
+      const newFavoriteState = !isFavorite;
+      setIsFavorite(newFavoriteState);
+
+      if (!newFavoriteState && favoriteId) {
         const { error } = await supabase
           .from('favorite_stations')
           .delete()
           .eq('id', favoriteId);
 
         if (error) throw error;
-        setIsFavorite(false);
         setFavoriteId(null);
       } else {
         // First check if the station is already favorited
@@ -151,8 +155,6 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
         }
 
         if (existingFavorite) {
-          // If it exists, just update the favorite state
-          setIsFavorite(true);
           setFavoriteId(existingFavorite.id);
           return;
         }
@@ -166,7 +168,8 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           lastUpdated = new Date(+year, +month - 1, +day, +hours, +minutes, +seconds).toISOString();
         }
 
-        const { data, error } = await supabase
+        // Add new favorite
+        const { data: newFavorite, error: insertError } = await supabase
           .from('favorite_stations')
           .insert([
             {
@@ -185,11 +188,12 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
           .select()
           .single();
 
-        if (error) throw error;
-        setIsFavorite(true);
-        setFavoriteId(data.id);
+        if (insertError) throw insertError;
+        if (newFavorite) setFavoriteId(newFavorite.id);
       }
     } catch (error) {
+      // Revert optimistic update on error
+      setIsFavorite(!isFavorite);
       console.error('Error toggling favorite:', error);
       Alert.alert(
         'Error',
@@ -274,12 +278,11 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-white dark:bg-gray-900 rounded-t-[20px]">
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View className="px-4 pt-4 pb-8">
-          <View className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4" />
+          <View className="w-10 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" />
           
-          {/* Header */}
           <View className="flex-row items-start mb-4">
             <Image 
               source={typeof getBrandLogo(station.brand) === 'string' 
@@ -289,14 +292,14 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               resizeMode="contain"
             />
             <View className="flex-1">
-              <Text className="text-2xl font-bold text-gray-900">{station.brand}</Text>
-              <Text className="text-base text-gray-600 mt-1">{station.address}</Text>
-              <Text className="text-xs text-gray-600 mt-1">{station.postcode}</Text>
+              <Text className="text-2xl font-bold text-gray-900 dark:text-white">{station.brand}</Text>
+              <Text className="text-base text-gray-600 dark:text-gray-400 mt-1">{station.address}</Text>
+              <Text className="text-xs text-gray-600 dark:text-gray-400 mt-1">{station.postcode}</Text>
             </View>
             <View className="flex-row gap-2 items-center -mt-1">
               <TouchableOpacity 
                 onPress={toggleFavorite}
-                className="h-12 w-12 rounded-full bg-pink-100 items-center justify-center mr-2"
+                className="h-12 w-12 rounded-full bg-pink-100 dark:bg-pink-900 items-center justify-center mr-2"
               >
                 <Ionicons
                   name={isFavorite ? 'heart' : 'heart-outline'}
@@ -306,19 +309,18 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               </TouchableOpacity>
               <TouchableOpacity 
                 onPress={() => router.back()}
-                className="h-12 w-12 rounded-full bg-gray-100 items-center justify-center pb-1"
+                className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 items-center justify-center pb-1"
               >
-                <Text className="text-3xl text-gray-500">×</Text>
+                <Text className="text-3xl text-gray-500 dark:text-gray-400">×</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Segmented Control for Fuel Type */}
           {station.prices.E10 && station.prices.B7 && (
-            <View className="flex-row bg-gray-100 rounded-full p-1 mb-4">
+            <View className="flex-row bg-gray-100 dark:bg-gray-800 rounded-full p-1 mb-4">
               <TouchableOpacity
                 className={`flex-1 py-2 px-4 rounded-full ${
-                  selectedFuelType === 'E10' ? 'bg-white' : ''
+                  selectedFuelType === 'E10' ? 'bg-white dark:bg-gray-700' : ''
                 }`}
                 onPress={() => handleFuelTypeChange('E10')}
                 activeOpacity={0.7}
@@ -332,7 +334,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               >
                 <Text
                   className={`text-center font-medium ${
-                    selectedFuelType === 'E10' ? 'text-blue-600' : 'text-gray-600'
+                    selectedFuelType === 'E10' ? 'text-red-600 dark:text-red-200' : 'text-gray-600 dark:text-gray-100'
                   }`}
                 >
                   Petrol (E10)
@@ -341,7 +343,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               
               <TouchableOpacity
                 className={`flex-1 py-2 px-4 rounded-full ${
-                  selectedFuelType === 'B7' ? 'bg-white' : ''
+                  selectedFuelType === 'B7' ? 'bg-white dark:bg-gray-700' : ''
                 }`}
                 onPress={() => handleFuelTypeChange('B7')}
                 activeOpacity={0.7}
@@ -355,7 +357,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               >
                 <Text
                   className={`text-center font-medium ${
-                    selectedFuelType === 'B7' ? 'text-blue-600' : 'text-gray-600'
+                    selectedFuelType === 'B7' ? 'text-red-600 dark:text-red-200' : 'text-gray-600 dark:text-gray-400'
                   }`}
                 >
                   Diesel (B7)
@@ -364,48 +366,53 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
             </View>
           )}
 
-          {/* Current Price Info */}
-          <View className="bg-gray-50 rounded-2xl p-4 mb-4">
-            {/* Fuel Type and Upvote Section */}
-            <View className="flex-row justify-between items-start">
+          <View className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 mb-4">
+            <View className="flex-row justify-between items-start mb-4">
               <View className="flex-1 mr-4">
-                <Text className="text-base text-gray-600 mb-1">
+                <Text className="text-base text-gray-600 dark:text-gray-400 mb-1">
                   {selectedFuelType === 'E10' ? 'Petrol (E10)' : 'Diesel (B7)'}
                 </Text>
-                <Text className="text-3xl font-bold text-gray-900">
+                <Text className="text-3xl font-bold text-gray-900 dark:text-white">
                   £{((selectedFuelType === 'E10' ? station.prices.E10 || 0 : station.prices.B7 || 0) / 100).toFixed(2)}
+                </Text>
+                <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {new Date().toLocaleDateString('en-GB', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
                 </Text>
               </View>
               <UpvoteButton 
                 stationId={station.site_id} 
-                fuelType={selectedFuelType} 
+                fuelType={selectedFuelType}
+                onUpvoteChange={(upvoted) => setIsUpvoted(upvoted > 0)} 
+                currentPrice={Math.round(selectedFuelType === 'E10' ? station.prices.E10 || 0 : station.prices.B7 || 0)}
               />
             </View>
 
-            {/* Divider */}
-            <View className="h-px bg-gray-200 my-3" />
+            <View className="h-px bg-gray-200 dark:bg-gray-700 mb-3" />
 
-            {/* Upvote Details Section */}
             <UpvoteDetails 
               stationId={station.site_id} 
-              fuelType={selectedFuelType} 
+              fuelType={selectedFuelType}
+              hasUserUpvoted={isUpvoted}
+              currentPrice={Math.round(selectedFuelType === 'E10' ? station.prices.E10 || 0 : station.prices.B7 || 0)}
             />
           </View>
 
-          {/* Price History Graph */}
-          <PriceHistoryWrapper 
+          <PriceHistoryGraph 
             siteId={station.site_id} 
-            fuelType={selectedFuelType.toLowerCase() as 'e10' | 'b7'} 
+            fuelType={selectedFuelType.toLowerCase() as 'e10' | 'b7' | 'e5' | 'sdv'} 
           />
 
-          {/* Last Updated */}
-          <Text className="text-sm text-gray-500 text-center mb-4 mt-2">
+          <Text className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4 mt-2">
             Last updated: {formatLastUpdated(station.last_updated ?? null)}
           </Text>
 
-          {/* Directions Button */}
           <TouchableOpacity
-            className="bg-brand rounded-2xl p-4 flex-row items-center justify-center"
+            className="bg-brand dark:bg-brand/80 rounded-2xl p-4 flex-row items-center justify-center"
             onPress={handleGetDirections}
             activeOpacity={0.8}
           >

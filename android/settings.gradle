@@ -21,7 +21,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   }
 }
 
-rootProject.name = 'cheapest-fuel-native'
+rootProject.name = 'CheapestFuel'
 
 dependencyResolutionManagement {
   versionCatalogs {

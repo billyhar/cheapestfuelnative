@@ -11,9 +11,10 @@ interface StationCardProps {
   onFavoritePress: () => void;
   isFavorite: boolean;
   isDeleting?: boolean;
+  onPress?: () => void;
 }
 
-const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isFavorite, isDeleting = false }) => {
+const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isFavorite, isDeleting = false, onPress }) => {
   const swipeableRef = useRef<Swipeable>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -91,7 +92,7 @@ const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isF
 
   return (
     <Animated.View 
-      className="w-full"
+      className="w-full px-4 py-2"
       style={{
         opacity: fadeAnim,
         transform: [{
@@ -109,60 +110,65 @@ const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isF
         friction={2}
         rightThreshold={40}
       >
-        <View className="mt-4">
-          <View className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-2 mx-4">
-            <View className="flex-row items-start">
-              <Image 
-                source={typeof getBrandLogo(station.brand) === 'string' 
-                  ? { uri: getBrandLogo(station.brand) } 
-                  : getBrandLogo(station.brand)}
-                className="w-12 h-12 mr-3"
-                resizeMode="contain"
-              />
-              <View className="flex-1">
-                <Text className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {station.name}
-                </Text>
-                <Text className="text-sm text-gray-500 dark:text-gray-400">
-                  {station.brand}
-                </Text>
-                <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {station.address}
-                </Text>
+        <TouchableOpacity 
+          onPress={onPress}
+          activeOpacity={0.7}
+        >
+          <View className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <View className="p-4">
+              <View className="flex-row items-start">
+                <Image 
+                  source={typeof getBrandLogo(station.brand) === 'string' 
+                    ? { uri: getBrandLogo(station.brand) } 
+                    : getBrandLogo(station.brand)}
+                  className="w-12 h-12 mr-3 rounded-lg"
+                  resizeMode="contain"
+                />
+                <View className="flex-1">
+                  <Text className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {station.name}
+                  </Text>
+                  <Text className="text-sm text-gray-500 dark:text-gray-400">
+                    {station.brand}
+                  </Text>
+                  <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {station.address}
+                  </Text>
+                </View>
+                <View className="items-end">
+                  {station.prices.E10 && (
+                    <View className="items-end mb-1">
+                      <Text className="text-xs text-gray-600 dark:text-gray-300">Petrol</Text>
+                      <Text className="text-lg font-bold text-green-700 dark:text-green-500">
+                        £{(station.prices.E10 / 100).toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+                  {station.prices.B7 && (
+                    <View className="items-end">
+                      <Text className="text-xs text-gray-600 dark:text-gray-300">Diesel</Text>
+                      <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                        £{(station.prices.B7 / 100).toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
-              <View className="items-end">
-                {station.prices.E10 && (
-                  <View className="items-end mb-1">
-                    <Text className="text-xs text-gray-500">Petrol</Text>
-                    <Text className="text-lg font-bold text-green-600">
-                      £{(station.prices.E10 / 100).toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-                {station.prices.B7 && (
-                  <View className="items-end">
-                    <Text className="text-xs text-gray-500">Diesel</Text>
-                    <Text className="text-lg font-bold text-gray-900">
-                      £{(station.prices.B7 / 100).toFixed(2)}
-                    </Text>
-                  </View>
-                )}
+              <View className="flex-row justify-between items-center mt-4">
+                <Text className="text-xs text-gray-600 dark:text-gray-300">
+                  Last updated: {new Date(station.last_updated).toLocaleString()}
+                </Text>
+                <TouchableOpacity
+                  onPress={openMapsApp}
+                  className="flex-row items-center bg-red-50 dark:bg-red-900/20 px-3 py-1 rounded-full"
+                >
+                  <Ionicons name="navigate-outline" size={16} color={AppTheme.colors.primary} />
+                  <Text className="text-sm text-primary dark:text-primary ml-1">Directions</Text>
+                </TouchableOpacity>
               </View>
-            </View>
-            <View className="flex-row justify-between items-center mt-4">
-              <Text className="text-xs text-gray-400 dark:text-gray-500">
-                Last updated: {new Date(station.last_updated).toLocaleString()}
-              </Text>
-              <TouchableOpacity
-                onPress={openMapsApp}
-                className="flex-row items-center bg-blue-50 dark:bg-gray-700 px-3 py-1 rounded-full"
-              >
-                <Ionicons name="navigate-outline" size={16} color={AppTheme.colors.primary} />
-                <Text className="text-sm text-primary ml-1">Directions</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </Swipeable>
     </Animated.View>
   );

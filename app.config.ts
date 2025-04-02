@@ -39,5 +39,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: {
       projectId: "your-project-id"
     }
-  }
+  },
+  name: 'CheapestFuel',
+  slug: 'cheapest-fuel',
 });

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureSupabaseInitialized } from '../lib/supabase';
 
 export interface FuelStation {
   address: string;
@@ -240,14 +240,59 @@ export class FuelPriceService {
   private isFetching: boolean = false;
   private cachedData: FuelStation[] = [];
   private lastUpdated: string | null = null;
+  private initializationRetries: number = 0;
+  private readonly MAX_INIT_RETRIES = 3;
 
-  private constructor() {}
+  private constructor() {
+    // Initialize Supabase when service is created
+    this.initializeSupabase();
+  }
+
+  private async initializeSupabase(retryCount = 0): Promise<void> {
+    try {
+      console.log('[FuelPriceService] Initializing Supabase...');
+      const success = await ensureSupabaseInitialized();
+      
+      if (!success && retryCount < this.MAX_INIT_RETRIES) {
+        console.log(`[FuelPriceService] Initialization failed, retrying (${retryCount + 1}/${this.MAX_INIT_RETRIES})`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return this.initializeSupabase(retryCount + 1);
+      }
+      
+      console.log('[FuelPriceService] Initialization complete');
+    } catch (error) {
+      console.error('[FuelPriceService] Initialization error:', error);
+    }
+  }
 
   static getInstance(): FuelPriceService {
     if (!FuelPriceService.instance) {
       FuelPriceService.instance = new FuelPriceService();
     }
     return FuelPriceService.instance;
+  }
+
+  // Add new method to ensure initialization
+  private async ensureInitialized(): Promise<boolean> {
+    try {
+      if (this.initializationRetries >= this.MAX_INIT_RETRIES) {
+        console.log('[FuelPriceService] Max initialization retries reached');
+        return false;
+      }
+      
+      const success = await ensureSupabaseInitialized();
+      if (!success) {
+        this.initializationRetries++;
+        console.log(`[FuelPriceService] Initialization attempt ${this.initializationRetries} failed`);
+        return false;
+      }
+      
+      this.initializationRetries = 0;
+      return true;
+    } catch (error) {
+      console.error('[FuelPriceService] Error ensuring initialization:', error);
+      return false;
+    }
   }
 
   private async loadFromCache(): Promise<FuelStation[] | null> {
@@ -354,7 +399,7 @@ export class FuelPriceService {
     return this.lastUpdated;
   }
 
-  // Add new method to fetch historical prices
+  // Update getHistoricalPrices to use the new initialization check
   async getHistoricalPrices(
     siteId: string,
     fuelType?: string,
@@ -366,6 +411,14 @@ export class FuelPriceService {
     sdv: { price: number; recorded_at: string }[];
   }> {
     try {
+      // Ensure Supabase is initialized with retries
+      const initialized = await this.ensureInitialized();
+      if (!initialized) {
+        throw new Error('Failed to initialize Supabase after multiple attempts');
+      }
+      
+      console.log(`[FuelPriceService] Fetching price history for site ${siteId}`);
+      
       const query = supabase
         .from('historical_fuel_prices')
         .select('fuel_type, price, recorded_at')
@@ -373,14 +426,18 @@ export class FuelPriceService {
         .gte('recorded_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
         .order('recorded_at', { ascending: true });
       
-      // If a specific fuel type is requested, filter for it
       if (fuelType) {
         query.eq('fuel_type', fuelType.toUpperCase());
       }
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('[FuelPriceService] Query error:', error);
+        throw error;
+      }
+
+      console.log(`[FuelPriceService] Retrieved ${data?.length || 0} price history records`);
 
       const historicalData = {
         e10: [] as { price: number; recorded_at: string }[],
@@ -389,7 +446,7 @@ export class FuelPriceService {
         sdv: [] as { price: number; recorded_at: string }[]
       };
 
-      data.forEach(record => {
+      data?.forEach(record => {
         const type = record.fuel_type.toLowerCase() as keyof typeof historicalData;
         if (type in historicalData) {
           historicalData[type].push({
@@ -401,7 +458,7 @@ export class FuelPriceService {
 
       return historicalData;
     } catch (error) {
-      console.error('Error fetching historical prices:', error);
+      console.error('[FuelPriceService] Error fetching historical prices:', error);
       return {
         e10: [],
         b7: [],
@@ -413,17 +470,27 @@ export class FuelPriceService {
 
   async getLatestPrices(): Promise<FuelStation[]> {
     try {
+      // Ensure Supabase is initialized before querying
+      await ensureSupabaseInitialized();
+      
+      console.log('[FuelPriceService] Fetching latest prices');
+      
       // Get all the latest prices from the latest_fuel_prices table
       const { data, error } = await supabase
         .from('latest_fuel_prices')
         .select('*');
 
-      if (error) throw error;
+      if (error) {
+        console.error('[FuelPriceService] Query error:', error);
+        throw error;
+      }
+
+      console.log(`[FuelPriceService] Retrieved ${data?.length || 0} latest price records`);
 
       // Convert the flat structure back to FuelStation format
       const stationMap = new Map();
       
-      data.forEach(record => {
+      data?.forEach(record => {
         if (!stationMap.has(record.site_id)) {
           stationMap.set(record.site_id, {
             site_id: record.site_id,
@@ -442,7 +509,7 @@ export class FuelPriceService {
       
       return Array.from(stationMap.values());
     } catch (error) {
-      console.error('Error fetching latest prices:', error);
+      console.error('[FuelPriceService] Error fetching latest prices:', error);
       // Fallback to API call if needed
       return this.fetchFuelPrices();
     }

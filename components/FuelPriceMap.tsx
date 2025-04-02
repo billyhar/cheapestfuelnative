@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated, Easing, StyleSheet } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated, Easing, StyleSheet, useColorScheme } from 'react-native';
 import Mapbox, {CircleLayerStyle, SymbolLayerStyle, UserLocation, MapState} from '@rnmapbox/maps';
 import { FuelPriceService, FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
@@ -9,9 +9,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import FuelTypeFilter from './FuelTypeFilter';
 import PriceLegend from './PriceLegend';
+import RecoveryButton from './RecoveryTools';
 
 // Initialize Mapbox
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
+
+// Add these constants near the top of the file, after the imports
+const UK_BOUNDS = {
+  minLon: -8.65, // Western edge
+  maxLon: 1.76,  // Eastern edge 
+  minLat: 49.84, // Southern edge
+  maxLat: 60.86  // Northern edge
+};
 
 interface PriceStats {
   E10: { min: number; max: number };
@@ -83,9 +92,15 @@ const FuelPriceMap: React.FC = () => {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locationPermission, setLocationPermission] = useState<boolean>(false);
   const [selectedFuelType, setSelectedFuelType] = useState<'E10' | 'B7'>('E10');
+  const colorScheme = useColorScheme();
 
   // London coordinates: -0.1276, 51.5074
   const defaultLocation: [number, number] = [-0.1276, 51.5074];
+
+  // Update this near the top of the component
+  const mapStyle = colorScheme === 'dark' 
+    ? 'mapbox://styles/mapbox/navigation-night-v1'
+    : Mapbox.StyleURL.Street;
 
   useEffect(() => {
     // Initial data fetch with force refresh to ensure we get fresh data
@@ -219,13 +234,19 @@ const FuelPriceMap: React.FC = () => {
       type: 'FeatureCollection',
       features: fuelStations
         .filter(station => {
-          return (
+          // Validate coordinates are within UK bounds
+          const isValidLocation = 
             typeof station.location.longitude === 'number' &&
             typeof station.location.latitude === 'number' &&
             !isNaN(station.location.longitude) &&
             !isNaN(station.location.latitude) &&
-            station.prices[selectedFuelType] // Only show stations with selected fuel type
-          );
+            station.location.longitude >= UK_BOUNDS.minLon &&
+            station.location.longitude <= UK_BOUNDS.maxLon &&
+            station.location.latitude >= UK_BOUNDS.minLat &&
+            station.location.latitude <= UK_BOUNDS.maxLat &&
+            station.prices[selectedFuelType]; // Only show stations with selected fuel type
+
+          return isValidLocation;
         })
         .map(station => ({
           type: 'Feature',
@@ -260,9 +281,7 @@ const FuelPriceMap: React.FC = () => {
         50,   // If point_count >= 50
         30    // Then radius = 30
       ],
-      circleOpacity: 0.84,
-      circleStrokeWidth: 2,
-      circleStrokeColor: 'white'
+      circleOpacity: colorScheme === 'dark' ? 0.9 : 0.84,
     };
 
     const symbolLayerStyle: SymbolLayerStyle = {
@@ -277,7 +296,7 @@ const FuelPriceMap: React.FC = () => {
       circleColor: [
         'case',
         ['==', ['get', 'id'], selectedStation?.site_id || ''],
-        '#4A90E2', // Highlight color for selected station
+        colorScheme === 'dark' ? '#60A5FA' : '#4A90E2', // Adjusted highlight color for dark mode
         ['get', 'color'] // Default color
       ],
       circleRadius: [
@@ -289,10 +308,10 @@ const FuelPriceMap: React.FC = () => {
       circleStrokeWidth: [
         'case',
         ['==', ['get', 'id'], selectedStation?.site_id || ''],
-        3, // Thicker border for selected station
-        2  // Default border width
+        3, // Only show border for selected station
+        0  // No border for unselected stations
       ],
-      circleStrokeColor: 'white',
+      circleStrokeColor: colorScheme === 'dark' ? '#374151' : 'white',
     };
 
     const unclusteredLabelStyle: SymbolLayerStyle = {
@@ -305,7 +324,7 @@ const FuelPriceMap: React.FC = () => {
         { 'font-scale': 1.2, 'text-font': ['DIN Offc Pro Black', 'Arial Unicode MS Bold'] }
       ],
       textSize: 13,
-      textColor: '#FFFFFF',
+      textColor: colorScheme === 'dark' ? '#F3F4F6' : '#FFFFFF',
       textAllowOverlap: true,
       textIgnorePlacement: true,
       textPadding: 24,
@@ -369,10 +388,11 @@ const FuelPriceMap: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container]}>
       <Mapbox.MapView
         ref={mapRef}
         style={styles.map}
+        styleURL={mapStyle}
         onPress={handleMapPress}
         onMapIdle={handleMapIdle}
         compassEnabled={true}
@@ -394,10 +414,12 @@ const FuelPriceMap: React.FC = () => {
       </Mapbox.MapView>
 
       {/* Price Legend */}
-      <PriceLegend />
+      <View className={`absolute top-12 right-4 ${colorScheme === 'dark' ? 'opacity-90' : ''}`}>
+        <PriceLegend />
+      </View>
 
       {/* Bottom Controls Container */}
-      <View className="absolute bottom-8 left-4 right-4 flex-row items-center justify-center space-x-4">
+      <View className={`absolute bottom-8 left-4 right-4 flex-row items-center justify-center space-x-4`}>
         <FuelTypeFilter
           selectedFuelType={selectedFuelType}
           onFuelTypeChange={setSelectedFuelType}
@@ -405,7 +427,7 @@ const FuelPriceMap: React.FC = () => {
         
         {userLocation && (
           <TouchableOpacity
-            className="bg-white p-3 rounded-full shadow-lg"
+            className={`${colorScheme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-3 rounded-full shadow-lg`}
             onPress={() => {
               if (userLocation && cameraRef.current) {
                 cameraRef.current.setCamera({
@@ -416,19 +438,32 @@ const FuelPriceMap: React.FC = () => {
               }
             }}
           >
-            <Ionicons name="navigate" size={24} color="blue" />
+            <Ionicons 
+              name="navigate" 
+              size={24} 
+              color={colorScheme === 'dark' ? '#60A5FA' : 'blue'} 
+            />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Loading overlay */}
       {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading fuel prices ⛽️</Text>
+        <View style={[
+          styles.loadingContainer,
+          colorScheme === 'dark' && { backgroundColor: 'rgba(0, 0, 0, 0.7)' }
+        ]}>
+          <ActivityIndicator size="large" color={colorScheme === 'dark' ? '#60A5FA' : '#007AFF'} />
+          <Text style={[
+            styles.loadingText,
+            colorScheme === 'dark' && { color: '#fff' }
+          ]}>Loading fuel prices ⛽️</Text>
         </View>
       )}
-    </SafeAreaView>
+      
+      {/* Recovery Button (hidden until triple-tapped) */}
+      <RecoveryButton />
+    </View>
   );
 };
 
@@ -464,14 +499,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 8,
+    marginTop: 10,
     fontSize: 16,
-    color: '#666',
+    color: '#000',
   },
 });
 
