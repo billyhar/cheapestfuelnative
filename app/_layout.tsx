@@ -290,6 +290,9 @@ const RootLayoutNav = () => {
 };
 
 const RootLayout = () => {
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+
   return (
     <DarkModeProvider>
       <AuthProvider>

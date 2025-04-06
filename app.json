@@ -15,6 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "deploymentTarget": "16.0",
       "bundleIdentifier": "com.billyhar.cheapest-fuel-native",
       "config": {
         "usesNonExemptEncryption": false
@@ -50,10 +51,18 @@
               "scheme": "cheapestfuel"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "NOTIFICATIONS"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -76,10 +85,16 @@
           "photosPermission": "The app needs access to your photos to let you pick an avatar."
         }
       ],
-      "expo-linking"
+      "expo-linking",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5654dcdd-46a4-4528-935f-75be868a01e8"
+      }
     }
   }
 }

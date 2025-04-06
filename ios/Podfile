@@ -13,11 +13,7 @@ install! 'cocoapods',
 
 prepare_react_native_project!
 
-# @generated begin @rnmapbox/maps-rnmapboxmapsimpl - expo prebuild (DO NOT MODIFY) sync-ad3954ebde83d55ad615de4c0d192c938138cbdf
-$RNMapboxMapsDownloadToken = 'pk.eyJ1IjoiY2hvbmthbW9ua2EiLCJhIjoiY201OXM3ZHI3MDRhaTJqczZwNGdqcjUyMCJ9.5s5gHVZdgIyswhtkFYbevQ'
-$RNMapboxMapsImpl = 'mapbox'
-# @generated end @rnmapbox/maps-rnmapboxmapsimpl
-target 'cheapestfuelnative' do
+target 'CheapestFuel' do
   use_expo_modules!
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
@@ -40,13 +36,6 @@ target 'cheapestfuelnative' do
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
   use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
 
-# @generated begin pre_installer - expo prebuild (DO NOT MODIFY) sync-c8812095000d6054b846ce74840f0ffb540c2757
-  pre_install do |installer|
-# @generated begin @rnmapbox/maps-pre_installer - expo prebuild (DO NOT MODIFY) sync-ea4905840bf9fcea0acc62e92aa2e784f9d760f8
-    $RNMapboxMaps.pre_install(installer)
-# @generated end @rnmapbox/maps-pre_installer
-  end
-# @generated end pre_installer
   use_react_native!(
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
@@ -56,9 +45,6 @@ target 'cheapestfuelnative' do
   )
 
   post_install do |installer|
-# @generated begin @rnmapbox/maps-post_installer - expo prebuild (DO NOT MODIFY) sync-c4e8f90e96f6b6c6ea9241dd7b52ab5f57f7bf36
-    $RNMapboxMaps.post_install(installer)
-# @generated end @rnmapbox/maps-post_installer
     react_native_post_install(
       installer,
       config[:reactNativePath],

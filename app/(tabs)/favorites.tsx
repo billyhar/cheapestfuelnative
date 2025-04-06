@@ -7,6 +7,7 @@ import StationCard from '../../components/StationCard';
 import { useColorScheme } from 'react-native';
 import { AppTheme } from '../../constants/BrandAssets';
 import { useRouter } from 'expo-router';
+import { useNotificationPreferences } from '../../app/hooks/useNotificationPreferences';
 
 interface FavoriteStation extends Station {
   favorite_id: string;
@@ -20,6 +21,7 @@ export default function FavoritesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const { isNotificationEnabled, toggleNotification } = useNotificationPreferences();
 
   const fetchFavorites = async () => {
     if (!user) return;
@@ -115,6 +117,14 @@ export default function FavoritesScreen() {
     });
   };
 
+  const handleNotificationToggle = async (stationId: string) => {
+    const success = await toggleNotification(stationId);
+    if (!success) {
+      // Handle error or show a message to the user
+      console.log('Failed to toggle notification');
+    }
+  };
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center">
@@ -136,6 +146,8 @@ export default function FavoritesScreen() {
             isFavorite={true}
             isDeleting={item.isDeleting}
             onPress={() => handleStationPress(item)}
+            notificationsEnabled={isNotificationEnabled(item.id)}
+            onNotificationToggle={() => handleNotificationToggle(item.id)}
           />
         )}
         ListEmptyComponent={

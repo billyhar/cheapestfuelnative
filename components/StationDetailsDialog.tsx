@@ -183,6 +183,7 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               station_price: station.prices.E10 || 0,
               station_price_b7: station.prices.B7 || 0,
               station_last_updated: lastUpdated || new Date().toISOString(),
+              notifications_enabled: false,
             },
           ])
           .select()

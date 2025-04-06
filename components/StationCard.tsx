@@ -12,9 +12,11 @@ interface StationCardProps {
   isFavorite: boolean;
   isDeleting?: boolean;
   onPress?: () => void;
+  notificationsEnabled?: boolean;
+  onNotificationToggle?: () => void;
 }
 
-const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isFavorite, isDeleting = false, onPress }) => {
+const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isFavorite, isDeleting = false, onPress, notificationsEnabled = false, onNotificationToggle }) => {
   const swipeableRef = useRef<Swipeable>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -156,15 +158,40 @@ const StationCard: React.FC<StationCardProps> = ({ station, onFavoritePress, isF
               </View>
               <View className="flex-row justify-between items-center mt-4">
                 <Text className="text-xs text-gray-600 dark:text-gray-300">
-                  Last updated: {new Date(station.last_updated).toLocaleString()}
+                  {new Date(station.last_updated).toLocaleString()}
                 </Text>
-                <TouchableOpacity
-                  onPress={openMapsApp}
-                  className="flex-row items-center bg-red-50 dark:bg-red-900/20 px-3 py-1 rounded-full"
-                >
-                  <Ionicons name="navigate-outline" size={16} color={AppTheme.colors.primary} />
-                  <Text className="text-sm text-primary dark:text-primary ml-1">Directions</Text>
-                </TouchableOpacity>
+                <View className="flex-row gap-2">
+                  {isFavorite && onNotificationToggle && (
+                    <TouchableOpacity
+                      onPress={onNotificationToggle}
+                      className={`flex-row items-center px-4 py-3 rounded-full ${
+                        notificationsEnabled 
+                          ? 'bg-red-100 dark:bg-red-900/30' 
+                          : 'bg-gray-100 dark:bg-gray-800'
+                      }`}
+                    >
+                      <Ionicons 
+                        name={notificationsEnabled ? "notifications" : "notifications-off-outline"} 
+                        size={16} 
+                        color={notificationsEnabled ? AppTheme.colors.primary : '#9CA3AF'} 
+                      />
+                      <Text className={`ml-1 text-sm ${
+                        notificationsEnabled 
+                          ? 'text-primary dark:text-primary' 
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {notificationsEnabled ? 'On' : 'Off'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={openMapsApp}
+                    className="flex-row items-center bg-red-50 dark:bg-red-900/20 px-3 py-1 rounded-full"
+                  >
+                    <Ionicons name="navigate-outline" size={16} color={AppTheme.colors.primary} />
+                    <Text className="text-sm text-primary dark:text-primary ml-1">Directions</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
