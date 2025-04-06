@@ -1,13 +1,25 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 
-const supabaseUrl = 'https://mrogvgehlhhzfysypxos.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yb2d2Z2VobGhoemZ5c3lweG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0MzgwMjMsImV4cCI6MjA1MzAxNDAyM30.jn12ZlXuaCF26cM_fKgHi8FKeMC-arGbsRtumrImSPw';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-let isInitialized = false;
-let initializationPromise: Promise<boolean> | null = null;
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables. Check your .env file.');
+}
+
+// Get the deep link URL for the current platform
+const getAuthRedirectUrl = () => {
+  // In development, we can use a localhost URL
+  if (__DEV__) {
+    if (Platform.OS === 'ios') return 'io.supabase.myapp://auth/callback';
+    if (Platform.OS === 'android') return 'io.supabase.myapp://auth/callback';
+  }
+  return Linking.createURL('auth/callback');
+};
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -18,6 +30,30 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     flowType: 'pkce'
   },
 });
+
+// Set up auth state change listener with proper typing
+supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+  console.log('Supabase auth event:', event);
+  console.log('Session state:', !!session);
+});
+
+// Initialize auth state
+export const initializeAuth = async () => {
+  try {
+    // Get the URL that was used to open the app
+    const url = await Linking.getInitialURL();
+    if (url) {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return data.session;
+    }
+  } catch (error) {
+    console.error('Error initializing auth:', error);
+  }
+};
+
+let isInitialized = false;
+let initializationPromise: Promise<boolean> | null = null;
 
 /**
  * Enhanced function to ensure Supabase is initialized

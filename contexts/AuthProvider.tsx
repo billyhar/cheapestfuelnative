@@ -198,112 +198,58 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, {
-        userId: session?.user?.id,
-        isNewUser,
-        isProfileSetupMode,
-        pathname
-      });
+      console.log('Auth state changed:', event);
       
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session) {
-        console.log('🔐 Auth event requires profile refresh:', event);
-        
-        try {
-          // For SIGNED_IN specifically, ensure profile with handle exists
-          if (event === 'SIGNED_IN') {
-            console.log('🔐 SIGNED_IN detected, ensuring profile exists immediately');
-            
-            // Set initial login flag before any profile operations
-            await AsyncStorage.setItem('initial_login', 'true');
-            
-            // Use refreshUser which has built-in retry and race condition handling
-            await refreshUser();
-            
-            // Clear initial login flag after successful refresh
-            await AsyncStorage.removeItem('initial_login');
-            return;
-          } else {
-            // For other events just use the standard refresh
-            await refreshUser();
-          }
-        } catch (error) {
-          console.error('Error handling auth event:', error);
-          
-          // If there was an error during SIGNED_IN, still try to refresh user as fallback
-          if (event === 'SIGNED_IN') {
-            try {
-              console.log('🔐 Error during profile creation, trying refreshUser as fallback');
-              await refreshUser();
-            } catch (fallbackError) {
-              console.error('🔐 Fallback refreshUser also failed:', fallbackError);
-            }
-          }
-        }
-      } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out - clearing states');
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(session);
+        setUser(session?.user ?? null);
+        await refreshUser();
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
         setProfile(null);
-        setIsNewUser(false);
-        setIsProfileSetupMode(false);
-        await Promise.all([
-          AsyncStorage.removeItem('isNewUser'),
-          AsyncStorage.removeItem('isProfileSetupMode'),
-          AsyncStorage.removeItem('profile'),
-          AsyncStorage.removeItem('initial_login')
-        ]);
+        await AsyncStorage.removeItem('isNewUser');
+        await AsyncStorage.removeItem('isProfileSetupMode');
       }
     });
+
+    // Handle deep linking
+    const handleDeepLink = ({ url }: { url: string }) => {
+      if (url.includes('auth/callback')) {
+        // Handle the auth callback
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            refreshUser();
+          }
+        });
+      }
+    };
+
+    // Set up deep link listeners
+    Linking.addEventListener('url', handleDeepLink);
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [pathname]);
+  }, []);
 
-  const signIn = async (email: string): Promise<void> => {
+  const signIn = async (email: string) => {
     try {
       const redirectUrl = Linking.createURL('auth/callback');
-      console.log('=== Sign In Debug Log ===');
-      console.log('Email:', email);
-      console.log('Redirect URL:', redirectUrl);
-
-      const { data, error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           emailRedirectTo: redirectUrl,
-          shouldCreateUser: true,
         },
       });
-
-      console.log('Sign in response:', { data, error });
-
-      if (error) {
-        console.error('Sign in error:', error);
-        throw error;
-      }
-
+      
+      if (error) throw error;
+      
       Alert.alert(
         'Check your email',
-        'We sent you a magic link to sign in',
-        [
-          ...EMAIL_APPS.map(app => ({
-            text: app.name,
-            style: 'default' as const,
-            onPress: async () => {
-              const canOpen = await Linking.canOpenURL(app.scheme);
-              if (canOpen) {
-                await Linking.openURL(app.scheme);
-              } else if ('fallbackUrl' in app && app.fallbackUrl) {
-                await Linking.openURL(app.fallbackUrl);
-              }
-            },
-          })),
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
+        'We sent you a login link. Be sure to check your spam too.'
       );
     } catch (error) {
       console.error('Sign in error:', error);
@@ -311,49 +257,20 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
-  const signOut = async (): Promise<void> => {
+  const signOut = async () => {
     try {
-      console.log('Starting sign out process');
-      setIsLoading(true);
-
-      // Set flag immediately before any async operations
-      await AsyncStorage.setItem('just_signed_out', 'true');
-      
-      // Clear all auth-related storage including last_processed_code flag we added
-      await AsyncStorage.multiRemove([
-        'supabase.auth.token',
-        'isNewUser',
-        'user',
-        'profile',
-        'isProfileSetupMode',
-        'last_processed_code' // Add this to clear our auth code cache
-      ]);
-
-      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Supabase sign out error:', error);
-        throw error;
-      }
-
-      console.log('Successfully signed out from Supabase');
-
-      // Clear all state
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      setIsNewUser(false);
-      setIsProfileSetupMode(false);
+      if (error) throw error;
       
-      // Navigation will be handled by the root layout's auth state change effect
+      // Clear local storage
+      await AsyncStorage.multiRemove([
+        'isNewUser',
+        'isProfileSetupMode',
+        'auth_callback_in_progress'
+      ]);
     } catch (error) {
       console.error('Sign out error:', error);
-      Alert.alert('Error', 'Failed to sign out. Please try again.');
-      
-      // In case of error, make sure the flag is still set
-      await AsyncStorage.setItem('just_signed_out', 'true');
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', error instanceof Error ? error.message : 'An error occurred');
     }
   };
 
@@ -474,206 +391,47 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
-  const refreshUser = async (): Promise<void> => {
-    // Skip if already refreshing to prevent race conditions
-    if (isRefreshingUserRef.current) {
-      console.log('Skip refreshUser - already in progress');
-      return;
-    }
-    
-    // Set flag to indicate refresh is in progress
+  const refreshUser = async () => {
+    if (isRefreshingUserRef.current) return;
     isRefreshingUserRef.current = true;
-    
+
     try {
-      console.log('↻ Refreshing user data');
-      
-      // Get current session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('Error getting session during refresh:', sessionError);
-        setIsLoading(false);
-        return;
-      }
-      
-      if (!session || !session.user) {
-        console.log('↻ No active session during refresh, clearing user data');
-        setUser(null);
-        setProfile(null);
-        setIsLoading(false);
-        return;
-      }
-      
-      // Update user state
-      setUser(session.user);
-      
-      // First check if this is an initial login session and needs a prioritized profile creation
-      const initialLogin = await AsyncStorage.getItem('initial_login');
-      if (initialLogin === 'true') {
-        console.log('↻ Initial login detected during refresh, prioritizing profile creation');
-        
-        // Check for existing profile with direct query (no single() to avoid PGRST116 errors)
-        const { data: existingProfiles } = await supabase
+      if (sessionError) throw sessionError;
+      if (!session?.user) return;
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError && profileError.code === 'PGRST116') {
+        // Profile doesn't exist, create it
+        const handle = await generateUniqueHandle();
+        const { data: newProfile, error: createError } = await supabase
           .from('profiles')
-          .select('*')
-          .eq('id', session.user.id);
-          
-        if (!existingProfiles || existingProfiles.length === 0) {
-          console.log('↻ No profile found during initial login refresh, creating immediately');
-          
-          // Generate a unique handle for the new user
-          const baseHandle = 'fueler';
-          const randomNum = Math.floor(1000 + Math.random() * 9000);
-          const handle = `${baseHandle}${randomNum}`;
-          
-          // Create the profile with auto-generated handle - don't use single() as it can cause errors
-          const { data: newProfiles, error: createError } = await supabase
-            .from('profiles')
-            .insert({ 
-              id: session.user.id, 
-              handle,
-              avatar_url: null,
-              is_handle_auto_generated: true,
-              updated_at: new Date().toISOString() 
-            })
-            .select();
-            
-            if (createError) {
-              console.error('↻ Error creating profile during initial login:', createError);
-              setIsLoading(false);
-              return;
-            } else if (newProfiles && newProfiles.length > 0) {
-              console.log('↻ Profile created successfully during initial login');
-              setProfile(newProfiles[0]);
-              
-              // Clear initial login flag after successful profile creation
-              await AsyncStorage.removeItem('initial_login');
-              setIsLoading(false);
-              return; // Exit early as we've already set the profile
-            }
-        } else {
-          console.log('↻ Found existing profile during initial login refresh');
-          setProfile(existingProfiles[0]);
-          
-          // Clear initial login flag after successful profile retrieval
-          await AsyncStorage.removeItem('initial_login');
-          setIsLoading(false);
-          return; // Exit early as we've already set the profile
-        }
+          .insert({
+            id: session.user.id,
+            handle,
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        setProfile(newProfile);
+        setIsNewUser(true);
+        setIsProfileSetupMode(true);
+      } else if (profileError) {
+        throw profileError;
+      } else {
+        setProfile(profile);
       }
-      
-      console.log('↻ Fetching profile for user:', session.user.id);
-      
-      // Attempt to fetch profile with retry mechanism
-      let fetchAttempts = 0;
-      let profile = null;
-      let createAttempts = 0;
-      
-      while (fetchAttempts < 2 && !profile) {
-        fetchAttempts++;
-        
-        try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (error) {
-            // If profile doesn't exist, create one
-            if (error.code === 'PGRST116') {
-              console.log(`↻ Profile not found (attempt ${fetchAttempts}), need to create one`);
-              
-              // Try to create profile with retries
-              while (createAttempts < 3 && !profile) {
-                createAttempts++;
-                console.log(`↻ Creating profile (attempt ${createAttempts})`);
-                
-                try {
-                  // Generate a unique handle
-                  const baseHandle = 'fueler';
-                  const randomNum = Math.floor(1000 + Math.random() * 9000);
-                  const handle = `${baseHandle}${randomNum}`;
-                  
-                  console.log(`↻ Generated handle: ${handle} for user: ${session.user.id}`);
-                  
-                  // Create profile with auto-generated handle
-                  const { data: newProfile, error: createError } = await supabase
-                    .from('profiles')
-                    .insert({ 
-                      id: session.user.id, 
-                      handle: handle,
-                      avatar_url: null,
-                      is_handle_auto_generated: true,
-                      updated_at: new Date().toISOString() 
-                    })
-                    .select()
-                    .single();
-                    
-                  if (createError) {
-                    console.error(`↻ Error creating profile (attempt ${createAttempts}):`, createError);
-                    
-                    // Wait between retries
-                    if (createAttempts < 3) {
-                      console.log('↻ Waiting before retry...');
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                  } else {
-                    console.log('↻ Profile created successfully:', newProfile);
-                    profile = newProfile;
-                    break;
-                  }
-                } catch (createError) {
-                  console.error(`↻ Unexpected error creating profile (attempt ${createAttempts}):`, createError);
-                  
-                  if (createAttempts < 3) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                  }
-                }
-              }
-              
-              if (!profile && createAttempts >= 3) {
-                console.error('↻ Failed to create profile after multiple attempts');
-                setIsLoading(false);
-                return;
-              }
-            } else {
-              console.error('↻ Error fetching profile:', error);
-              
-              // Wait before retry
-              if (fetchAttempts < 2) {
-                console.log('↻ Waiting before retry...');
-                await new Promise(resolve => setTimeout(resolve, 800));
-              }
-            }
-          } else {
-            console.log('↻ Profile fetched successfully');
-            profile = data;
-          }
-        } catch (fetchError) {
-          console.error(`↻ Unexpected error fetching profile (attempt ${fetchAttempts}):`, fetchError);
-          
-          if (fetchAttempts < 2) {
-            await new Promise(resolve => setTimeout(resolve, 800));
-          }
-        }
-      }
-      
-      // Update profile state
-      setProfile(profile);
-      
-      console.log('↻ User refresh complete', { 
-        hasUser: !!session.user,
-        hasProfile: !!profile
-      });
-      
     } catch (error) {
-      console.error('Error in refreshUser:', error);
+      console.error('Error refreshing user:', error);
     } finally {
-      // Only clear loading if we have a profile or if there was an error
-      if (profile || !session?.user) {
-        setIsLoading(false);
-      }
+      isRefreshingUserRef.current = false;
     }
   };
 
@@ -741,6 +499,26 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     setProfile,
     pickImage,
     refreshUser,
+    
+    // signInWithGitHub: async (): Promise<void> => {
+    //   try {
+    //     const redirectUrl = Linking.createURL('auth/callback');
+    //     const { data, error } = await supabase.auth.signInWithOAuth({
+    //       provider: 'github',
+    //       options: {
+    //         redirectTo: redirectUrl,
+    //       },
+    //     });
+        
+    //     if (error) throw error;
+    //     if (data?.url) {
+    //       await Linking.openURL(data.url);
+    //     }
+    //   } catch (error) {
+    //     console.error('GitHub sign in error:', error);
+    //     Alert.alert('Error', error instanceof Error ? error.message : 'An error occurred');
+    //   }
+    // },
   };
 
   return (
