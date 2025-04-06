@@ -102,72 +102,76 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
   const getReferencePrice = () => {
     if (priceHistory.length === 0) return 0;
     
-    const now = new Date();
-    let referenceDate;
-    
-    switch(timeRange) {
-      case 'week':
-        referenceDate = subWeeks(now, 1);
-        break;
-      case 'month':
-        referenceDate = subMonths(now, 1);
-        break;
-      case 'year':
-        referenceDate = subYears(now, 1);
-        break;
-      case 'all':
-        return formatPriceForDisplay(priceHistory[0].price);
-    }
-    
-    // Find the closest price point before the reference date
-    for (let i = priceHistory.length - 1; i >= 0; i--) {
-      const priceDate = new Date(priceHistory[i].recorded_at);
-      if (priceDate <= referenceDate) {
-        return formatPriceForDisplay(priceHistory[i].price);
-      }
-    }
-    
-    // If no price found before reference date, use the oldest available price
-    return formatPriceForDisplay(priceHistory[0].price);
+    // Get the first price point in the current view
+    const viewStartPrice = graphPoints[0]?.value;
+    return viewStartPrice || formatPriceForDisplay(priceHistory[0].price);
   };
 
   // Update the graphPoints transformation to ensure we have a point for each day
   const graphPoints = useMemo((): GraphPoint[] => {
     if (priceHistory.length === 0) return [];
 
-    // For week view, ensure we have all 7 days
-    if (timeRange === 'week') {
-      const endDate = new Date(priceHistory[priceHistory.length - 1].recorded_at);
-      const startDate = subDays(endDate, 6);
-      const dailyPoints: GraphPoint[] = [];
-      
-      // Create array of 7 days
-      for (let i = 0; i <= 6; i++) {
-        const currentDate = addDays(startDate, i);
-        // Find the price for this day
-        const priceForDay = priceHistory.find(p => 
-          format(new Date(p.recorded_at), 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd')
-        );
-        
-        // If we have a price for this day, use it
-        // Otherwise, use the last known price
-        const price = priceForDay 
-          ? formatPriceForDisplay(priceForDay.price)
-          : dailyPoints[dailyPoints.length - 1]?.value || formatPriceForDisplay(priceHistory[0].price);
-        
-        dailyPoints.push({
-          value: price,
-          date: currentDate
-        });
-      }
-      return dailyPoints;
-    }
-
-    // For other views, use the existing points
-    return priceHistory.map(point => ({
+    const points = priceHistory.map(point => ({
       value: formatPriceForDisplay(point.price),
       date: new Date(point.recorded_at)
     }));
+
+    // Only fill in gaps for week view
+    if (timeRange === 'week') {
+      const endDate = new Date(priceHistory[priceHistory.length - 1].recorded_at);
+      const weekStartDate = subDays(endDate, 6);
+      const fullWeekPoints: GraphPoint[] = [];
+      
+      for (let i = 0; i <= 6; i++) {
+        const currentDate = addDays(weekStartDate, i);
+        const existingPoint = points.find(p => 
+          format(p.date, 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd')
+        );
+        
+        if (existingPoint) {
+          fullWeekPoints.push(existingPoint);
+        } else {
+          fullWeekPoints.push({
+            value: fullWeekPoints[fullWeekPoints.length - 1]?.value || points[0].value,
+            date: currentDate
+          });
+        }
+      }
+      return fullWeekPoints;
+    }
+
+    // For month/year views, just return the actual data points
+    return points;
+  }, [priceHistory, timeRange]);
+
+  // Update the getViewDateRange function
+  const getViewDateRange = useMemo(() => {
+    if (priceHistory.length === 0) return { min: new Date(), max: new Date() };
+    
+    const startDate = new Date(priceHistory[0].recorded_at);
+    let endDate: Date;
+    
+    switch (timeRange) {
+      case 'week':
+        // Week view remains the same (looking back 6 days)
+        endDate = new Date(priceHistory[priceHistory.length - 1].recorded_at);
+        return { min: subDays(endDate, 6), max: endDate };
+      case 'month':
+        // Month view: start from first data point, extend forward to show 30 days
+        endDate = addDays(startDate, 29);
+        return { min: startDate, max: endDate };
+      case 'year':
+        // Year view: start from first data point, extend forward to show 365 days
+        endDate = addDays(startDate, 364);
+        return { min: startDate, max: endDate };
+      case 'all':
+        return { 
+          min: startDate, 
+          max: new Date(priceHistory[priceHistory.length - 1].recorded_at) 
+        };
+      default:
+        return { min: startDate, max: startDate };
+    }
   }, [priceHistory, timeRange]);
 
   // Add this helper function after the component imports
@@ -325,9 +329,14 @@ export function PriceHistoryGraph({ siteId, fuelType }: PriceHistoryGraphProps) 
                 y: {
                   min: expandedMin,
                   max: expandedMax
+                },
+                x: {
+                  min: getViewDateRange.min,
+                  max: getViewDateRange.max
                 }
               }}
-              verticalPadding={5} // Even less padding to maximize graph height
+              horizontalPadding={8}
+              verticalPadding={5}
               onPointSelected={(point) => {
                 setSelectedPrice(point.value);
                 setSelectedDate(point.date);
@@ -399,7 +408,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 20, // Match the graphContainer padding
     left: 8, // Match the graphContainer padding
-    right: 8, // Match the graphContainer padding
+    right: 0, // Match the graphContainer padding
     bottom: 20, // Match the graphContainer padding
     justifyContent: 'space-between',
   },
@@ -410,7 +419,7 @@ const styles = StyleSheet.create({
   },
   graphContainer: {
     height: '100%',
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     paddingVertical: 20,
   },
   graph: {
