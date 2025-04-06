@@ -125,26 +125,46 @@ const UpvoteButton: React.FC<UpvoteButtonProps> = ({
 
     try {
       if (newUpvoted) {
-        const { error } = await supabase
+        // First check if an upvote already exists
+        const { data: existingUpvote } = await supabase
           .from('fuel_price_upvotes')
-          .insert([
-            {
-              user_id: user.id,
-              station_id: stationId,
-              fuel_type: fuelType,
-              price: currentPrice,
-            },
-          ]);
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('station_id', stationId)
+          .eq('fuel_type', fuelType)
+          .single();
 
-        if (error) throw error;
+        if (existingUpvote) {
+          // If it exists, update the price
+          const { error } = await supabase
+            .from('fuel_price_upvotes')
+            .update({ price: currentPrice })
+            .eq('id', existingUpvote.id);
+
+          if (error) throw error;
+        } else {
+          // If it doesn't exist, insert new record
+          const { error } = await supabase
+            .from('fuel_price_upvotes')
+            .insert([
+              {
+                user_id: user.id,
+                station_id: stationId,
+                fuel_type: fuelType,
+                price: currentPrice,
+              },
+            ]);
+
+          if (error) throw error;
+        }
       } else {
+        // Delete upvote remains the same
         const { error } = await supabase
           .from('fuel_price_upvotes')
           .delete()
           .eq('user_id', user.id)
           .eq('station_id', stationId)
-          .eq('fuel_type', fuelType)
-          .eq('price', currentPrice);
+          .eq('fuel_type', fuelType);
 
         if (error) throw error;
       }

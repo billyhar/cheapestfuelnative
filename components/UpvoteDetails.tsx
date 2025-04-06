@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,22 +14,11 @@ interface UpvoteDetailsProps {
 
 interface UpvoteUser {
   id: string;
-  handle: string;
+  handle: string | null;
   first_name: string | null;
   avatar_url: string | null;
   created_at: string;
-}
-
-interface FuelPriceUpvoteWithProfile {
-  id: string;
-  created_at: string;
-  user_id: string;
-  profiles: {
-    id: string;
-    handle: string | null;
-    first_name: string | null;
-    avatar_url: string | null;
-  } | null;
+  isLoading?: boolean;
 }
 
 const UpvoteDetails: React.FC<UpvoteDetailsProps> = ({ 
@@ -44,104 +33,38 @@ const UpvoteDetails: React.FC<UpvoteDetailsProps> = ({
   const [upvoteUsers, setUpvoteUsers] = useState<UpvoteUser[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previousUpvoteState, setPreviousUpvoteState] = useState(hasUserUpvoted);
+  
+  // Use refs to track mounted state and prevent memory leaks
+  const isMountedRef = useRef(true);
+  const subscriptionRef = useRef<any>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousUpvoteStateRef = useRef(hasUserUpvoted);
+  const optimisticUpdateRef = useRef<UpvoteUser | null>(null);
+  const skipNextUpdateRef = useRef(false);
 
-  // Function to optimistically add the current user's upvote
-  const addOptimisticUpvote = useCallback(async () => {
-    if (!user) return;
-
-    try {
-      // Get the user's profile data
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('handle, first_name')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      const now = new Date().toISOString();
-      const optimisticUser: UpvoteUser = {
-        id: user.id,
-        handle: profileData?.handle || 'anonymous',
-        first_name: profileData?.first_name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        created_at: now
-      };
-
-      setUpvoteUsers(prev => {
-        if (prev.some(u => u.id === user.id)) return prev;
-        return [optimisticUser, ...prev];
-      });
-    } catch (error) {
-      console.error('Error getting user profile for optimistic update:', error);
-      // Fallback to basic optimistic update
-      const now = new Date().toISOString();
-      const optimisticUser: UpvoteUser = {
-        id: user.id,
-        handle: 'anonymous',
-        first_name: null,
-        avatar_url: null,
-        created_at: now
-      };
-
-      setUpvoteUsers(prev => {
-        if (prev.some(u => u.id === user.id)) return prev;
-        return [optimisticUser, ...prev];
-      });
-    }
-  }, [user]);
-
-  // Function to optimistically remove the current user's upvote
-  const removeOptimisticUpvote = useCallback(() => {
-    if (!user) return;
-    setUpvoteUsers(prev => prev.filter(u => u.id !== user.id));
-  }, [user]);
-
-  // Function to handle upvote removal
-  const handleUpvoteRemoval = useCallback(async (userId: string) => {
-    if (!user || user.id !== userId) return;
-
-    try {
-      // Optimistically remove from UI
-      removeOptimisticUpvote();
-
-      // Remove from database
-      const { error: deleteError } = await supabase
-        .from('fuel_price_upvotes')
-        .delete()
-        .eq('user_id', userId)
-        .eq('station_id', stationId)
-        .eq('fuel_type', fuelType)
-        .eq('price', currentPrice);
-
-      if (deleteError) throw deleteError;
-
-      // Update upvote count
-      const { count } = await supabase
-        .from('fuel_price_upvotes')
-        .select('*', { count: 'exact' })
-        .eq('station_id', stationId)
-        .eq('fuel_type', fuelType)
-        .eq('price', currentPrice);
-
-      if (onUpvoteChange) {
-        onUpvoteChange(count || 0);
+  // Cleanup function to run on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
       }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
-    } catch (error) {
-      console.error('Error removing upvote:', error);
-      // Revert optimistic update
-      await fetchUpvoteDetails();
-      Alert.alert('Error', 'Failed to remove upvote. Please try again.');
-    }
-  }, [user, stationId, fuelType, currentPrice, onUpvoteChange, removeOptimisticUpvote]);
-
+  // Function to fetch upvote details
   const fetchUpvoteDetails = useCallback(async () => {
-    if (!isExpanded) return;
+    if (!isMountedRef.current) return;
+    
+    setIsLoading(true);
+    setError(null);
     
     try {
-      const { data: upvotesData, error: upvotesError } = await supabase
+      // First get the upvotes
+      const { data: upvotes, error: upvotesError } = await supabase
         .from('fuel_price_upvotes')
         .select('id, created_at, user_id')
         .eq('station_id', stationId)
@@ -151,69 +74,182 @@ const UpvoteDetails: React.FC<UpvoteDetailsProps> = ({
 
       if (upvotesError) throw upvotesError;
 
-      if (!upvotesData || upvotesData.length === 0) {
-        setUpvoteUsers([]);
-        return;
-      }
-
-      const userIds = upvotesData.map(upvote => upvote.user_id);
-      const { data: profilesData, error: profilesError } = await supabase
+      // Then get the profiles for those users
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, handle, first_name, avatar_url')
-        .in('id', userIds);
+        .in('id', (upvotes || []).map(u => u.user_id));
 
       if (profilesError) throw profilesError;
 
-      const profileMap = new Map(
-        (profilesData || []).map(profile => [profile.id, profile])
-      );
+      if (!isMountedRef.current) return;
 
-      const formattedUsers = upvotesData.map(upvote => {
-        const profile = profileMap.get(upvote.user_id);
-        return {
-          id: upvote.user_id,
-          handle: profile?.handle || 'anonymous',
-          first_name: profile?.first_name || null,
-          avatar_url: profile?.avatar_url || null,
-          created_at: upvote.created_at
-        };
-      });
+      const profileMap = new Map(profiles?.map(p => [p.id, p]));
+      
+      let formattedUsers: UpvoteUser[] = (upvotes || [])
+        .filter(upvote => profileMap.has(upvote.user_id))
+        .map(upvote => {
+          const profile = profileMap.get(upvote.user_id)!;
+          return {
+            id: upvote.user_id,
+            handle: profile.handle,
+            first_name: profile.first_name,
+            avatar_url: profile.avatar_url,
+            created_at: upvote.created_at
+          };
+        });
+
+      // If we have an optimistic update and it's not in the list, add it
+      if (optimisticUpdateRef.current && !formattedUsers.some(u => u.id === optimisticUpdateRef.current!.id)) {
+        formattedUsers = [optimisticUpdateRef.current, ...formattedUsers];
+      }
 
       setUpvoteUsers(formattedUsers);
     } catch (error) {
-      console.error('Error in fetchUpvoteDetails:', error);
+      if (!isMountedRef.current) return;
       setError('Failed to load upvote details');
+      console.error('Error fetching upvote details:', error);
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [isExpanded, stationId, fuelType, currentPrice]);
+  }, [stationId, fuelType, currentPrice]);
 
   // Effect to handle optimistic updates when hasUserUpvoted changes
   useEffect(() => {
-    if (hasUserUpvoted === previousUpvoteState) return;
+    // Skip if the state hasn't changed
+    if (hasUserUpvoted === previousUpvoteStateRef.current) return;
     
-    const updateUpvoteState = async () => {
-      if (hasUserUpvoted) {
-        await addOptimisticUpvote();
-      } else {
-        removeOptimisticUpvote();
-      }
-      setPreviousUpvoteState(hasUserUpvoted);
-    };
+    // Update the ref
+    previousUpvoteStateRef.current = hasUserUpvoted;
+    
+    // If user is not logged in, don't do anything
+    if (!user) return;
+    
+    // Handle optimistic update
+    if (hasUserUpvoted) {
+      // Add optimistic upvote
+      const now = new Date().toISOString();
+      const optimisticUser: UpvoteUser = {
+        id: user.id,
+        handle: user.user_metadata?.handle || null,
+        first_name: user.user_metadata?.first_name || null,
+        avatar_url: user.user_metadata?.avatar_url || null,
+        created_at: now,
+        isLoading: true
+      };
+      
+      // Store the optimistic update in the ref
+      optimisticUpdateRef.current = optimisticUser;
+      
+      // Set the flag to skip the next real-time update
+      skipNextUpdateRef.current = true;
+      
+      setUpvoteUsers(prev => {
+        if (prev.some(u => u.id === user.id)) return prev;
+        return [optimisticUser, ...prev];
+      });
+      
+      // Try to fetch the user's profile data
+      const fetchUserProfile = async () => {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('handle, first_name, avatar_url')
+            .eq('id', user.id)
+            .single();
+            
+          if (profileError) throw profileError;
+          
+          if (!isMountedRef.current) return;
+          
+          // Update the optimistic user with the fetched profile data
+          optimisticUser.handle = profileData?.handle || null;
+          optimisticUser.first_name = profileData?.first_name || null;
+          optimisticUser.avatar_url = profileData?.avatar_url || null;
+          optimisticUser.isLoading = false;
+          
+          // Update the optimistic update ref
+          optimisticUpdateRef.current = optimisticUser;
+          
+          // Update the UI
+          setUpvoteUsers(prev => {
+            const updated = [...prev];
+            const index = updated.findIndex(u => u.id === user.id);
+            if (index !== -1) {
+              updated[index] = optimisticUser;
+            }
+            return updated;
+          });
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          if (!isMountedRef.current) return;
+          
+          // Mark as not loading even if there was an error
+          optimisticUser.isLoading = false;
+          
+          // Update the UI
+          setUpvoteUsers(prev => {
+            const updated = [...prev];
+            const index = updated.findIndex(u => u.id === user.id);
+            if (index !== -1) {
+              updated[index] = optimisticUser;
+            }
+            return updated;
+          });
+        }
+      };
+      
+      fetchUserProfile();
+    } else {
+      // Remove optimistic upvote
+      optimisticUpdateRef.current = null;
+      setUpvoteUsers(prev => prev.filter(u => u.id !== user.id));
+    }
+  }, [hasUserUpvoted, user]);
 
-    updateUpvoteState();
-  }, [hasUserUpvoted, previousUpvoteState, addOptimisticUpvote, removeOptimisticUpvote]);
-
-  // Effect to fetch details when expanded
+  // Effect to load upvote details when expanded
   useEffect(() => {
     if (isExpanded) {
       fetchUpvoteDetails();
     }
   }, [isExpanded, fetchUpvoteDetails]);
 
-  // Effect to handle real-time updates
+  // Effect to handle real-time updates with debounce
   useEffect(() => {
     if (!isExpanded) return;
+    
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Clear any existing subscription
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+    }
+    
+    const debouncedFetch = () => {
+      // If we're skipping the next update, reset the flag and return
+      if (skipNextUpdateRef.current) {
+        skipNextUpdateRef.current = false;
+        return;
+      }
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      timeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current && isExpanded) {
+          fetchUpvoteDetails();
+        }
+      }, 1000); // 1 second debounce
+    };
 
-    const channel = supabase
+    // Set up the subscription
+    subscriptionRef.current = supabase
       .channel('upvotes_channel')
       .on(
         'postgres_changes',
@@ -223,14 +259,18 @@ const UpvoteDetails: React.FC<UpvoteDetailsProps> = ({
           table: 'fuel_price_upvotes',
           filter: `station_id=eq.${stationId} AND fuel_type=eq.${fuelType} AND price=eq.${currentPrice}`
         },
-        () => {
-          fetchUpvoteDetails();
-        }
+        debouncedFetch
       )
       .subscribe();
 
+    // Cleanup function
     return () => {
-      channel.unsubscribe();
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
     };
   }, [isExpanded, stationId, fuelType, currentPrice, fetchUpvoteDetails]);
 
@@ -286,11 +326,18 @@ const UpvoteDetails: React.FC<UpvoteDetailsProps> = ({
                     )}
                   </View>
                   <View className="flex-1">
-                    <Text className="text-sm font-medium text-gray-900">
-                      {user.handle}
-                    </Text>
-                    <Text className="text-xs text-gray-500">
-                      {new Date(user.created_at).toLocaleDateString()}
+                    {user.isLoading ? (
+                      <View className="flex-row items-center">
+                        <ActivityIndicator size="small" color="#ef4444" />
+                        <Text className="text-sm text-gray-500 ml-2">Loading...</Text>
+                      </View>
+                    ) : (
+                      <Text className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {user.handle || 'Anonymous'}
+                      </Text>
+                    )}
+                    <Text className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatTimeAgo(user.created_at)}
                     </Text>
                   </View>
                 </View>
