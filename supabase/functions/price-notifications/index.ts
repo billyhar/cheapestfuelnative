@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
-import { APNSProvider } from 'npm:@parse/node-apn';
 
 interface PriceNotificationRecord {
   station_id: string;
@@ -8,13 +7,9 @@ interface PriceNotificationRecord {
   fuel_type: string;
 }
 
-interface RequestEvent {
-  record: PriceNotificationRecord;
-}
-
 interface UserPreference {
   user_id: string;
-  notifications_enabled: { [key: string]: boolean };
+  notifications_enabled: boolean;
 }
 
 interface Station {
@@ -22,27 +17,40 @@ interface Station {
   brand: string;
 }
 
-interface PushToken {
-  token: string;
-  platform: string;
-}
-
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const APN_KEY_ID = Deno.env.get('APN_KEY_ID') ?? '';
-const APN_TEAM_ID = Deno.env.get('APN_TEAM_ID') ?? '';
-const APN_BUNDLE_ID = Deno.env.get('APN_BUNDLE_ID') ?? '';
-const APN_KEY = Deno.env.get('APN_KEY') ?? '';
+const EXPO_ACCESS_TOKEN = Deno.env.get('EXPO_ACCESS_TOKEN') ?? '';
 
-// Initialize APNs provider
-const apnProvider = new APNSProvider({
-  token: {
-    key: APN_KEY,
-    keyId: APN_KEY_ID,
-    teamId: APN_TEAM_ID
-  },
-  production: true // Set to false for development
+console.log('Starting edge function with config:', {
+  SUPABASE_URL: !!SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: !!SUPABASE_SERVICE_ROLE_KEY,
+  EXPO_ACCESS_TOKEN: !!EXPO_ACCESS_TOKEN
 });
+
+// Function to send push notification via Expo
+async function sendExpoNotification(pushToken: string, notification: any) {
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${EXPO_ACCESS_TOKEN}`
+    },
+    body: JSON.stringify({
+      to: pushToken,
+      title: notification.alert.title,
+      body: notification.alert.body,
+      data: notification.payload,
+      sound: 'default'
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Expo push request failed: ${response.status} ${text}`);
+  }
+
+  return response;
+}
 
 Deno.serve(async (req: Request) => {
   try {
@@ -50,122 +58,152 @@ Deno.serve(async (req: Request) => {
 
     // Check if this is a test request
     const url = new URL(req.url);
-    if (url.pathname === '/test') {
+    if (url.pathname.endsWith('/test')) {
+      console.log('Received test request');
       const { station_id, user_id } = await req.json();
-      
+      console.log('Test request params:', { station_id, user_id });
+
       // Get the station details
-      const { data: station } = await supabase
-        .from('stations')
-        .select('name, brand')
-        .eq('id', station_id)
+      const { data: station, error: stationError } = await supabase
+        .from('favorite_stations')
+        .select('station_name, station_brand')
+        .eq('station_id', station_id)
         .single();
 
-      if (!station) {
+      if (stationError) {
+        console.error('Error fetching station:', stationError);
         throw new Error('Station not found');
       }
 
       // Get user's push token
-      const { data: pushToken } = await supabase
+      const { data: pushToken, error: tokenError } = await supabase
         .from('push_tokens')
-        .select('token, platform')
+        .select('token')
         .eq('user_id', user_id)
         .single();
 
-      if (!pushToken) {
+      if (tokenError) {
+        console.error('Error fetching push token:', tokenError);
         throw new Error('Push token not found');
       }
+
+      console.log('Found push token:', pushToken);
 
       // Create test notification
       const notification = {
         alert: {
-          title: 'Test Notification',
-          body: `Test notification for ${station.brand} ${station.name}`
+          title: 'Test Price Alert',
+          body: `Test notification for ${station.station_brand} ${station.station_name}`
         },
         payload: {
           station_id,
-          fuel_type: 'E10'
-        },
-        topic: APN_BUNDLE_ID
+          type: 'test'
+        }
       };
 
+      console.log('Sending test notification:', notification);
+
       // Send test notification
-      const result = await apnProvider.send(notification, pushToken.token);
+      const result = await sendExpoNotification(pushToken.token, notification);
       console.log('Test notification result:', result);
 
-      return new Response('Test notification sent', { status: 200 });
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Test notification sent',
+        result: await result.text()
+      }), { 
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    // Original price change notification logic
-    const { record } = (await req.json()) as RequestEvent;
+    // Handle regular price change notifications
+    const { record } = await req.json();
     const { station_id, previous_price, new_price, fuel_type } = record;
 
     // Get all users who have notifications enabled for this station
-    const { data: preferences } = await supabase
+    const { data: favorites, error: favoritesError } = await supabase
       .from('favorite_stations')
       .select('user_id')
       .eq('station_id', station_id)
       .eq('notifications_enabled', true);
 
-    if (!preferences || preferences.length === 0) {
+    if (favoritesError) {
+      console.error('Error fetching favorites:', favoritesError);
+      throw favoritesError;
+    }
+
+    if (!favorites || favorites.length === 0) {
       return new Response('No users to notify', { status: 200 });
     }
 
     // Get the station details
-    const { data: station } = await supabase
-      .from('stations')
-      .select('name, brand')
-      .eq('id', station_id)
+    const { data: station, error: stationError } = await supabase
+      .from('favorite_stations')
+      .select('station_name, station_brand')
+      .eq('station_id', station_id)
       .single();
 
-    if (!station) {
+    if (stationError) {
+      console.error('Error fetching station:', stationError);
       throw new Error('Station not found');
     }
 
     // Get push tokens for all users
-    const { data: pushTokens } = await supabase
+    const { data: pushTokens, error: tokensError } = await supabase
       .from('push_tokens')
-      .select('token, platform')
-      .in('user_id', preferences.map(p => p.user_id));
+      .select('token')
+      .in('user_id', favorites.map(f => f.user_id));
+
+    if (tokensError) {
+      console.error('Error fetching push tokens:', tokensError);
+      throw tokensError;
+    }
 
     if (!pushTokens || pushTokens.length === 0) {
       return new Response('No push tokens found', { status: 200 });
     }
 
-    // Filter iOS tokens
-    const iosTokens = pushTokens
-      .filter(token => token.platform === 'ios')
-      .map(token => token.token);
+    // Send notifications
+    const notification = {
+      alert: {
+        title: `Price ${new_price < previous_price ? 'Drop' : 'Increase'} Alert!`,
+        body: `${station.station_brand} ${station.station_name} ${fuel_type} price has ${
+          new_price < previous_price ? 'dropped to' : 'increased to'
+        } £${(new_price / 100).toFixed(2)}`
+      },
+      payload: {
+        station_id,
+        fuel_type
+      }
+    };
 
-    if (iosTokens.length > 0) {
-      // Create notification payload
-      const notification = {
-        alert: {
-          title: `Price ${new_price < previous_price ? 'Drop' : 'Increase'} Alert!`,
-          body: `${station.brand} ${station.name} ${fuel_type} price has ${
-            new_price < previous_price ? 'dropped to' : 'increased to'
-          } £${(new_price / 100).toFixed(2)}`
-        },
-        payload: {
-          station_id,
-          fuel_type
-        },
-        topic: APN_BUNDLE_ID
-      };
+    const results = await Promise.all(
+      pushTokens.map(token => sendExpoNotification(token.token, notification))
+    );
 
-      // Send to all iOS devices
-      const results = await Promise.all(
-        iosTokens.map(token => apnProvider.send(notification, token))
-      );
+    console.log('Notification results:', results);
 
-      console.log('APNs results:', results);
-    }
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Notifications sent successfully',
+      results: await Promise.all(results.map(r => r.text()))
+    }), { 
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-    return new Response('Notifications sent successfully', { status: 200 });
   } catch (error) {
     console.error('Error in price-notifications function:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), 
-      { status: 500 }
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error
+      }), 
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 }); 

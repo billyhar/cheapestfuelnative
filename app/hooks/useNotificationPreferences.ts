@@ -114,7 +114,9 @@ export const useNotificationPreferences = () => {
         }
 
         // Get device push token
-        const devicePushToken = await Notifications.getDevicePushTokenAsync();
+        const devicePushToken = await Notifications.getExpoPushTokenAsync({
+          projectId: "5654dcdd-46a4-4528-935f-75be868a01e8"
+        });
         console.log('Got device push token:', devicePushToken);
 
         // First check if token already exists
