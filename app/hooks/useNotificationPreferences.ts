@@ -20,7 +20,10 @@ export const useNotificationPreferences = () => {
         .select('station_id, notifications_enabled')
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching notification preferences:', error);
+        return;
+      }
 
       const prefs: { [key: string]: boolean } = {};
       data?.forEach(item => {
@@ -35,8 +38,15 @@ export const useNotificationPreferences = () => {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetchPreferences();
   }, [user]);
+
+  // Add a refresh function that can be called from outside
+  const refreshPreferences = async () => {
+    setLoading(true);
+    await fetchPreferences();
+  };
 
   // Request permissions and register for notifications
   const requestPermissions = async () => {
@@ -70,23 +80,35 @@ export const useNotificationPreferences = () => {
   const toggleNotification = async (stationId: string) => {
     if (!user) return false;
 
-    // Optimistically update the UI
-    const newValue = !preferences[stationId];
-    setPreferences(prev => ({
-      ...prev,
-      [stationId]: newValue
-    }));
+    console.log('Toggling notification for station:', stationId);
+    console.log('Current preferences:', preferences);
 
     try {
+      // Get current state from database first
+      const { data: currentState, error: fetchError } = await supabase
+        .from('favorite_stations')
+        .select('notifications_enabled')
+        .eq('user_id', user.id)
+        .eq('station_id', stationId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching current state:', fetchError);
+        return false;
+      }
+
+      if (!currentState) {
+        console.error('Station not found in favorites');
+        return false;
+      }
+
+      const newValue = !currentState.notifications_enabled;
+      console.log('New value to set:', newValue);
+
       // Only request permissions if enabling notifications and they haven't been granted
       if (newValue) {
         const hasPermission = await requestPermissions();
         if (!hasPermission) {
-          // Revert optimistic update if permissions weren't granted
-          setPreferences(prev => ({
-            ...prev,
-            [stationId]: !newValue
-          }));
           console.log('No notification permission');
           return false;
         }
@@ -103,6 +125,11 @@ export const useNotificationPreferences = () => {
           .eq('token', devicePushToken.data)
           .single();
 
+        if (checkError && checkError.code !== 'PGRST116') {
+          console.error('Error checking existing token:', checkError);
+          return false;
+        }
+
         if (!existingToken) {
           // Only insert if token doesn't exist
           const { error: tokenError } = await supabase
@@ -116,19 +143,14 @@ export const useNotificationPreferences = () => {
             });
 
           if (tokenError) {
-            // Revert optimistic update if token storage failed
-            setPreferences(prev => ({
-              ...prev,
-              [stationId]: !newValue
-            }));
             console.error('Error storing push token:', tokenError);
-            throw tokenError;
+            return false;
           }
         }
       }
 
       // Update the notifications_enabled flag in favorite_stations
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('favorite_stations')
         .update({
           notifications_enabled: newValue
@@ -136,23 +158,24 @@ export const useNotificationPreferences = () => {
         .eq('user_id', user.id)
         .eq('station_id', stationId);
 
-      if (error) {
-        // Revert optimistic update if the update failed
-        setPreferences(prev => ({
-          ...prev,
-          [stationId]: !newValue
-        }));
-        console.error('Error updating notification preference:', error);
-        throw error;
+      if (updateError) {
+        console.error('Error updating notification preference:', updateError);
+        return false;
       }
+
+      // Update local state after successful database update
+      console.log('Updating local state with new value:', newValue);
+      setPreferences(prev => {
+        const newState = {
+          ...prev,
+          [stationId]: newValue
+        };
+        console.log('New preferences state:', newState);
+        return newState;
+      });
 
       return true;
     } catch (error) {
-      // Revert optimistic update on any other error
-      setPreferences(prev => ({
-        ...prev,
-        [stationId]: !newValue
-      }));
       console.error('Error toggling notification:', error);
       return false;
     }
@@ -166,6 +189,7 @@ export const useNotificationPreferences = () => {
   return {
     loading,
     isNotificationEnabled,
-    toggleNotification
+    toggleNotification,
+    refreshPreferences
   };
 }; 

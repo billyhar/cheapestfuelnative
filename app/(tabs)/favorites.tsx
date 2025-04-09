@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, ActivityIndicator, RefreshControl, Animated } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -6,7 +6,7 @@ import { Station } from '../../types/station';
 import StationCard from '../../components/StationCard';
 import { useColorScheme } from 'react-native';
 import { AppTheme } from '../../constants/BrandAssets';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useNotificationPreferences } from '../../app/hooks/useNotificationPreferences';
 
 interface FavoriteStation extends Station {
@@ -21,7 +21,7 @@ export default function FavoritesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const { isNotificationEnabled, toggleNotification } = useNotificationPreferences();
+  const { isNotificationEnabled, toggleNotification, refreshPreferences } = useNotificationPreferences();
 
   const fetchFavorites = async () => {
     if (!user) return;
@@ -43,8 +43,8 @@ export default function FavoritesScreen() {
         latitude: fav.station_latitude,
         longitude: fav.station_longitude,
         prices: {
-          E10: fav.station_price ? Number(fav.station_price) : undefined,
-          B7: fav.station_price_b7 ? Number(fav.station_price_b7) : undefined,
+          E10: undefined,
+          B7: undefined,
           E5: undefined,
           SDV: undefined
         },
@@ -65,6 +65,14 @@ export default function FavoritesScreen() {
   useEffect(() => {
     fetchFavorites();
   }, [user]);
+
+  // Add focus effect to refresh data
+  useFocusEffect(
+    useCallback(() => {
+      fetchFavorites();
+      refreshPreferences();
+    }, [])
+  );
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -120,8 +128,10 @@ export default function FavoritesScreen() {
   const handleNotificationToggle = async (stationId: string) => {
     const success = await toggleNotification(stationId);
     if (!success) {
-      // Handle error or show a message to the user
       console.log('Failed to toggle notification');
+    } else {
+      // Force a refresh of the preferences
+      await refreshPreferences();
     }
   };
 

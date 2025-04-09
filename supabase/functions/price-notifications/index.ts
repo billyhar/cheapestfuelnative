@@ -48,7 +48,54 @@ Deno.serve(async (req: Request) => {
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get the price notification record that triggered this function
+    // Check if this is a test request
+    const url = new URL(req.url);
+    if (url.pathname === '/test') {
+      const { station_id, user_id } = await req.json();
+      
+      // Get the station details
+      const { data: station } = await supabase
+        .from('stations')
+        .select('name, brand')
+        .eq('id', station_id)
+        .single();
+
+      if (!station) {
+        throw new Error('Station not found');
+      }
+
+      // Get user's push token
+      const { data: pushToken } = await supabase
+        .from('push_tokens')
+        .select('token, platform')
+        .eq('user_id', user_id)
+        .single();
+
+      if (!pushToken) {
+        throw new Error('Push token not found');
+      }
+
+      // Create test notification
+      const notification = {
+        alert: {
+          title: 'Test Notification',
+          body: `Test notification for ${station.brand} ${station.name}`
+        },
+        payload: {
+          station_id,
+          fuel_type: 'E10'
+        },
+        topic: APN_BUNDLE_ID
+      };
+
+      // Send test notification
+      const result = await apnProvider.send(notification, pushToken.token);
+      console.log('Test notification result:', result);
+
+      return new Response('Test notification sent', { status: 200 });
+    }
+
+    // Original price change notification logic
     const { record } = (await req.json()) as RequestEvent;
     const { station_id, previous_price, new_price, fuel_type } = record;
 

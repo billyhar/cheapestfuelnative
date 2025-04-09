@@ -180,10 +180,10 @@ const StationDetailsDialog: React.FC<StationDetailsDialogProps> = ({
               station_address: station.address,
               station_latitude: station.location.latitude,
               station_longitude: station.location.longitude,
-              station_price: station.prices.E10 || 0,
-              station_price_b7: station.prices.B7 || 0,
               station_last_updated: lastUpdated || new Date().toISOString(),
               notifications_enabled: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             },
           ])
           .select()

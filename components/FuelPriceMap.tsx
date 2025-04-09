@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated, Easing, StyleSheet, useColorScheme } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, ActivityIndicator, Image, Platform, Linking, Animated, Easing, StyleSheet, useColorScheme, TouchableWithoutFeedback } from 'react-native';
 import Mapbox, {CircleLayerStyle, SymbolLayerStyle, UserLocation, MapState} from '@rnmapbox/maps';
 import { FuelPriceService, FuelStation } from '../services/FuelPriceService';
 import { BrandLogos } from '../constants/BrandAssets';
@@ -389,29 +389,31 @@ const FuelPriceMap: React.FC = () => {
 
   return (
     <View style={[styles.container]}>
-      <Mapbox.MapView
-        ref={mapRef}
-        style={styles.map}
-        styleURL={mapStyle}
-        onPress={handleMapPress}
-        onMapIdle={handleMapIdle}
-        compassEnabled={true}
-        compassPosition={{ top: Platform.OS === 'ios' ? 650 : 600, left: 16 }}
-        compassViewPosition={1}
-        compassViewMargins={{ x: 16, y: Platform.OS === 'ios' ? 650 : 600 }}
-      >
-        <Mapbox.Camera
-          ref={cameraRef}
-          zoomLevel={11}
-          centerCoordinate={currentLocation || defaultLocation}
-        />
-        <UserLocation 
-          visible={locationPermission}
-          onUpdate={handleLocationUpdate}
-          minDisplacement={10}
-        />
-        {renderAnnotations()}
-      </Mapbox.MapView>
+      <TouchableWithoutFeedback>
+        <Mapbox.MapView
+          ref={mapRef}
+          style={styles.map}
+          styleURL={mapStyle}
+          onPress={handleMapPress}
+          onMapIdle={handleMapIdle}
+          compassEnabled={true}
+          compassPosition={{ top: Platform.OS === 'ios' ? 650 : 600, left: 16 }}
+          compassViewPosition={1}
+          compassViewMargins={{ x: 16, y: Platform.OS === 'ios' ? 650 : 600 }}
+        >
+          <Mapbox.Camera
+            ref={cameraRef}
+            zoomLevel={11}
+            centerCoordinate={currentLocation || defaultLocation}
+          />
+          <UserLocation 
+            visible={locationPermission}
+            onUpdate={handleLocationUpdate}
+            minDisplacement={10}
+          />
+          {renderAnnotations()}
+        </Mapbox.MapView>
+      </TouchableWithoutFeedback>
 
       {/* Price Legend */}
       <View className={`absolute top-12 right-4 ${colorScheme === 'dark' ? 'opacity-90' : ''}`}>
